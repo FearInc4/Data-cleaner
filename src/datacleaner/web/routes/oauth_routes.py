@@ -43,7 +43,7 @@ def _signed_in_user(request: Request, db: Session) -> User | None:
 
 
 @router.get("/{provider_key}/start")
-def start(provider_key: str, request: Request, purpose: str = "login", db: Session = Depends(get_db)):
+def start(provider_key: str, request: Request, purpose: str = "login", db: Session = Depends(get_db, scope="function")):
     try:
         provider = oauth.get_provider(provider_key)
     except oauth.OAuthError:
@@ -64,7 +64,7 @@ def start(provider_key: str, request: Request, purpose: str = "login", db: Sessi
 
 
 @router.get("/{provider_key}/callback")
-def callback(provider_key: str, request: Request, db: Session = Depends(get_db)):
+def callback(provider_key: str, request: Request, db: Session = Depends(get_db, scope="function")):
     try:
         provider = oauth.get_provider(provider_key)
         creds = _creds(db, provider)

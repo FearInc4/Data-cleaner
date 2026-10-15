@@ -37,12 +37,12 @@ def _account(request: Request, db: Session, user: User, **extra):
 
 
 @router.get("")
-def account_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def account_page(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     return _account(request, db, user)
 
 
 @router.post("/extension/pair")
-def extension_pair(request: Request, name: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def extension_pair(request: Request, name: str = Form(""), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     token = pair_browser(db, user, name)
     db.flush()
     # Shown once, in this response only: not stored, not put in a redirect or flash message.
@@ -50,7 +50,7 @@ def extension_pair(request: Request, name: str = Form(""), db: Session = Depends
 
 
 @router.post("/extension/{token_id}/revoke")
-def extension_revoke(token_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def extension_revoke(token_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     row = db.get(ExtensionToken, token_id)
     if row and row.user_id == user.id:
         db.delete(row)
@@ -71,7 +71,7 @@ def extension_zip(user: User = Depends(current_user)):
 
 @router.post("/password")
 def set_password(request: Request, current: str = Form(""), new: str = Form(...), new2: str = Form(...),
-                 db: Session = Depends(get_db), user: User = Depends(current_user)):
+                 db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     if user.has_password and not verify_password(current, user.password_hash):
         flash(request, "Your current password isn't right.", "error")
         return redirect("/account")
@@ -87,7 +87,7 @@ def set_password(request: Request, current: str = Form(""), new: str = Form(...)
 
 
 @router.post("/unlink/{identity_id}")
-def unlink(identity_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def unlink(identity_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     ident = db.get(OAuthIdentity, identity_id)
     if not ident or ident.user_id != user.id:
         return redirect("/account")
@@ -100,7 +100,7 @@ def unlink(identity_id: int, request: Request, db: Session = Depends(get_db), us
 
 
 @router.post("/signout-all")
-def signout_all(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def signout_all(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     user.session_version += 1
     db.flush()
     request.session.clear()
@@ -109,7 +109,7 @@ def signout_all(request: Request, db: Session = Depends(get_db), user: User = De
 
 
 @router.post("/disconnect/{account_id}")
-def disconnect(account_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def disconnect(account_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     acc = db.get(MailAccount, account_id)
     if not acc:
         return redirect("/settings#email")
@@ -139,7 +139,7 @@ def erase_everything(db: Session) -> None:
 
 
 @router.post("/erase")
-def erase(request: Request, confirm: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def erase(request: Request, confirm: str = Form(""), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     if confirm.strip() != "ERASE":
         flash(request, 'Type ERASE in capitals to confirm.', "error")
         return redirect("/account#erase")

@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 @router.get("/")
-def dashboard(request: Request, profile_id: int | None = None, db: Session = Depends(get_db),
+def dashboard(request: Request, profile_id: int | None = None, db: Session = Depends(get_db, scope="function"),
               user: User = Depends(current_user)):
     profile = selected_profile(request, db, profile_id)
     settings = Settings(db)
@@ -71,7 +71,7 @@ def dashboard(request: Request, profile_id: int | None = None, db: Session = Dep
 
 
 @router.get("/switch")
-def switch_profile(request: Request, profile_id: int, next: str = "/", db: Session = Depends(get_db),
+def switch_profile(request: Request, profile_id: int, next: str = "/", db: Session = Depends(get_db, scope="function"),
                    user: User = Depends(current_user)):
     selected_profile(request, db, profile_id)
     # Only ever redirect within this app.
@@ -79,7 +79,7 @@ def switch_profile(request: Request, profile_id: int, next: str = "/", db: Sessi
 
 
 @router.get("/welcome")
-def welcome(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def welcome(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     """Guided setup: connect email, add yourself, pick brokers, send."""
     from ...mail.transport import describe
     from ...models import Profile
