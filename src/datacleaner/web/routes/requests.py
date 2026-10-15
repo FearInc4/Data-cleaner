@@ -29,7 +29,7 @@ def _assist_available() -> bool:
 
 
 @router.get("")
-def list_requests(request: Request, status: str = "", profile_id: int | None = None, db: Session = Depends(get_db),
+def list_requests(request: Request, status: str = "", profile_id: int | None = None, db: Session = Depends(get_db, scope="function"),
                   user: User = Depends(current_user)):
     profile = selected_profile(request, db, profile_id)
     stmt = select(RemovalRequest).join(Broker)
@@ -49,7 +49,7 @@ def list_requests(request: Request, status: str = "", profile_id: int | None = N
 
 
 @router.get("/new")
-def new_requests(request: Request, profile_id: int | None = None, db: Session = Depends(get_db),
+def new_requests(request: Request, profile_id: int | None = None, db: Session = Depends(get_db, scope="function"),
                  user: User = Depends(current_user)):
     profile = selected_profile(request, db, profile_id)
     if not profile:
@@ -64,7 +64,7 @@ def new_requests(request: Request, profile_id: int | None = None, db: Session = 
 
 
 @router.post("/create")
-async def create_requests(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db),
+async def create_requests(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db, scope="function"),
                           user: User = Depends(current_user)):
     form = await request.form()
     broker_ids = [int(v) for v in form.getlist("broker_id") if str(v).isdigit()]
@@ -86,7 +86,7 @@ async def create_requests(request: Request, profile_id: int = Form(...), db: Ses
 
 
 @router.post("/approve-all")
-def approve_all(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def approve_all(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     settings = Settings(db)
     if not describe(db)["can_send"]:
         flash(request, "Connect your email (Gmail, Outlook or SMTP) on the Settings page first.", "error")
@@ -110,7 +110,7 @@ def _get(db: Session, request_id: int) -> RemovalRequest:
 
 
 @router.get("/{request_id}")
-def request_detail(request_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def request_detail(request_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     req = _get(db, request_id)
     settings = Settings(db)
     alias = engine.ensure_alias(db, req)
@@ -127,7 +127,7 @@ def request_detail(request_id: int, request: Request, db: Session = Depends(get_
 
 @router.post("/{request_id}/action")
 def request_action(request_id: int, request: Request, action: str = Form(...), note: str = Form(""),
-                   listing_url: str = Form(""), status: str = Form(""), db: Session = Depends(get_db),
+                   listing_url: str = Form(""), status: str = Form(""), db: Session = Depends(get_db, scope="function"),
                    user: User = Depends(current_user)):
     req = _get(db, request_id)
     now = utcnow()
@@ -181,7 +181,7 @@ def request_action(request_id: int, request: Request, action: str = Form(...), n
 
 
 @router.post("/{request_id}/assist")
-def request_assist(request_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def request_assist(request_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     req = _get(db, request_id)
     if not _assist_available():
         flash(request, "Assisted fill needs Playwright and a desktop session (it opens a visible browser).", "error")

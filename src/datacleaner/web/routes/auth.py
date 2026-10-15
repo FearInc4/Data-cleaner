@@ -44,7 +44,7 @@ def oauth_options(db: Session) -> list[oauth.Provider]:
 
 
 @router.get("/setup")
-def setup_page(request: Request, token: str | None = None, db: Session = Depends(get_db)):
+def setup_page(request: Request, token: str | None = None, db: Session = Depends(get_db, scope="function")):
     if _user_count(db):
         return redirect("/login")
     if token is not None:
@@ -69,7 +69,7 @@ def _base_url(request: Request) -> str:
 
 @router.post("/setup")
 def setup_submit(request: Request, username: str = Form(...), password: str = Form(...), password2: str = Form(...),
-                 db: Session = Depends(get_db)):
+                 db: Session = Depends(get_db, scope="function")):
     if _user_count(db):
         return redirect("/login")
     if not request.session.get("setup_ok"):
@@ -92,7 +92,7 @@ def setup_submit(request: Request, username: str = Form(...), password: str = Fo
 
 @router.post("/setup/oauth-app")
 def setup_oauth_app(request: Request, provider: str = Form(...), client_id: str = Form(...), client_secret: str = Form(...),
-                    db: Session = Depends(get_db)):
+                    db: Session = Depends(get_db, scope="function")):
     """Save Google/Microsoft OAuth client credentials before the first account exists."""
     if _user_count(db) or not request.session.get("setup_ok"):
         return redirect("/login")
@@ -107,7 +107,7 @@ def setup_oauth_app(request: Request, provider: str = Form(...), client_id: str 
 
 
 @router.get("/login")
-def login_page(request: Request, db: Session = Depends(get_db)):
+def login_page(request: Request, db: Session = Depends(get_db, scope="function")):
     if not _user_count(db):
         return redirect("/setup")
     return render(request, db, "login.html", providers=oauth_options(db),
@@ -115,7 +115,7 @@ def login_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db, scope="function")):
     key = _client_key(request, username)
     if _throttled(key):
         flash(request, "Too many failed attempts. Wait 15 minutes and try again.", "error")

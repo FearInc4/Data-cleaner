@@ -70,6 +70,12 @@ class NeedsSetup(Exception):
 
 
 def get_db() -> Iterator[Session]:
+    """One session per request, committed when the route returns.
+
+    Always depend on it with ``Depends(get_db, scope="function")``. With FastAPI's default
+    "request" scope the commit would run after the response is sent, so a browser could be
+    told "saved" before (or even if not) it is.
+    """
     session = new_session()
     try:
         yield session
@@ -92,7 +98,7 @@ def start_session(request: Request, user: User) -> None:
     request.session.update({"uid": user.id, "sv": user.session_version, "iat": now, "seen": now})
 
 
-def current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def current_user(request: Request, db: Session = Depends(get_db, scope="function")) -> User:
     sess = request.session
     uid = sess.get("uid")
     if uid:

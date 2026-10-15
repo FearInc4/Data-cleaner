@@ -44,7 +44,7 @@ def pair_browser(db: Session, user: User, name: str) -> str:
     return token
 
 
-def paired_browser(request: Request, db: Session = Depends(get_db)) -> ExtensionToken:
+def paired_browser(request: Request, db: Session = Depends(get_db, scope="function")) -> ExtensionToken:
     scheme, _, token = (request.headers.get("authorization") or "").partition(" ")
     if scheme.lower() != "bearer" or not token.startswith(TOKEN_PREFIX):
         raise HTTPException(401, "Not paired", headers={"WWW-Authenticate": "Bearer"})
@@ -89,7 +89,7 @@ def whoami(tok: ExtensionToken = Depends(paired_browser)):
 
 
 @router.get("/tasks")
-def tasks(db: Session = Depends(get_db), tok: ExtensionToken = Depends(paired_browser)):
+def tasks(db: Session = Depends(get_db, scope="function"), tok: ExtensionToken = Depends(paired_browser)):
     """Forms waiting to be submitted. No personal details: just which broker, for whom."""
     return {"tasks": [
         {"id": r.id, "broker": r.broker.name, "url": r.broker.opt_out_url, "domains": fill_domains(r.broker),
@@ -99,7 +99,7 @@ def tasks(db: Session = Depends(get_db), tok: ExtensionToken = Depends(paired_br
 
 
 @router.get("/tasks/{request_id}/fill")
-def fill(request_id: int, db: Session = Depends(get_db), tok: ExtensionToken = Depends(paired_browser)):
+def fill(request_id: int, db: Session = Depends(get_db, scope="function"), tok: ExtensionToken = Depends(paired_browser)):
     req = _task(db, request_id)
     values = values_for(req.profile, req.listing_url, email=engine.ensure_alias(db, req))
     engine.add_event(db, req, "note", f"Form details sent to the browser extension ({tok.name})", now=utcnow())
@@ -108,7 +108,7 @@ def fill(request_id: int, db: Session = Depends(get_db), tok: ExtensionToken = D
 
 
 @router.post("/tasks/{request_id}/submitted")
-def submitted(request_id: int, note: str = Body("", embed=True, max_length=300), db: Session = Depends(get_db),
+def submitted(request_id: int, note: str = Body("", embed=True, max_length=300), db: Session = Depends(get_db, scope="function"),
               tok: ExtensionToken = Depends(paired_browser)):
     req = _task(db, request_id)
     text = "Submitted with the browser extension" + (f": {note.strip()}" if note.strip() else "")
