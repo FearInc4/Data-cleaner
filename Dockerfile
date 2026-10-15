@@ -25,7 +25,8 @@ COPY requirements.lock ./
 RUN pip install --require-hashes --no-deps -r requirements.lock \
  # pip isn't needed at runtime, and the copy in the base image carries known CVEs.
  && pip uninstall -y pip \
- && useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin datacleaner \
+ && groupadd --system --gid 10001 datacleaner \
+ && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin datacleaner \
  && mkdir -p /data && chown datacleaner /data && chmod 700 /data
 COPY --chown=root:root src ./src
 COPY --chown=root:root LICENSE README.md ./

@@ -22,16 +22,23 @@ Your data never leaves your machine except in the requests you approve. Personal
 
 ### Docker (recommended)
 
+The published image runs on amd64 and arm64 (including a Raspberry Pi with a 64-bit OS). In an empty folder:
+
 ```bash
-git clone https://github.com/FearInc4/Data-cleaner.git
-cd Data-cleaner
-cp .env.example .env   # optional: set DATACLEANER_SECRET_KEY and SEARXNG_SECRET
+curl -fsSLO https://raw.githubusercontent.com/FearInc4/Data-cleaner/main/deploy/compose/compose.yaml
+printf 'DATACLEANER_SECRET_KEY=%s\nSEARXNG_SECRET=%s\n' "$(openssl rand -base64 48)" "$(openssl rand -hex 32)" > .env
+chmod 600 .env
 docker compose up -d
+docker compose logs datacleaner
 ```
 
-Then run `docker compose logs datacleaner` and open the **setup link** it prints (`http://localhost:25326/setup?token=…`). Port 25326 spells CLEAN on a phone keypad and was picked because other apps don't use it; set `DATACLEANER_PORT` in `.env` to change it. The one-time token makes sure nobody else can claim your install. A short guided setup takes it from there: connect your email, add your details, pick brokers, send.
+Open the **setup link** the log prints (`http://localhost:25326/setup?token=…`). The one-time token makes sure nobody else can claim your install. A short guided setup takes it from there: connect your email, add your details, pick brokers, send.
 
-This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network. Everything is stored in the `datacleaner-data` Docker volume.
+This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network. Everything is stored in the `datacleaner-data` Docker volume. Port 25326 spells CLEAN on a phone keypad and was picked because other apps don't use it.
+
+**Already run a Docker stack?** [docs/docker.md](docs/docker.md) has a block to paste into your own `docker-compose.yml`, plus Traefik, Caddy, Nginx Proxy Manager and Tailscale setups, bind mounts and custom user IDs, Docker secrets, updating, backup and restore, and troubleshooting.
+
+**From source:** `git clone https://github.com/FearInc4/Data-cleaner.git && cd Data-cleaner && docker compose up -d --build` builds the image yourself.
 
 ### Without Docker
 
@@ -149,10 +156,13 @@ Most settings live on the in-app **Settings** page. Process-level options are en
 | `DATACLEANER_SEARXNG_URL` | | Default SearXNG URL (compose sets this) |
 | `DATACLEANER_BASE_URL` | | The address you open in the browser, e.g. `https://privacy.example.com`. Used for OAuth redirect URIs and the Host allow-list. `https://` also turns on secure cookies and HSTS. |
 | `DATACLEANER_ALLOWED_HOSTS` | | Extra hostnames allowed in the Host header (comma-separated), e.g. a Tailscale name. Blocks DNS-rebinding attacks. |
+| `DATACLEANER_TRUSTED_PROXIES` | loopback | Reverse proxy IPs or networks (e.g. `172.18.0.0/16`) whose `X-Forwarded-*` headers are trusted, so sign-in rate limits see real client addresses |
 | `DATACLEANER_GOOGLE_CLIENT_ID` / `_SECRET` | | Google OAuth client (or set them in the app) |
 | `DATACLEANER_MICROSOFT_CLIENT_ID` / `_SECRET` | | Microsoft OAuth client (or set them in the app) |
 | `DATACLEANER_SECURE_COOKIES` | `0` | Set to `1` when served over HTTPS (automatic if the base URL is https) |
 | `DATACLEANER_DATABASE_URL` | SQLite in the data dir | Any SQLAlchemy URL |
+
+Secrets (`DATACLEANER_SECRET_KEY`, the OAuth client IDs and secrets, `DATACLEANER_DATABASE_URL`) can also be read from a file: add `_FILE` to the name (for Docker or Podman secrets).
 
 **Email over SMTP/IMAP** (if you don't connect Gmail/Outlook directly). Use an app password, not your main password.
 
@@ -163,7 +173,7 @@ Most settings live on the in-app **Settings** page. Process-level options are en
 | Fastmail | smtp.fastmail.com:465 ssl | imap.fastmail.com:993 |
 | iCloud | smtp.mail.me.com:587 starttls | imap.mail.me.com:993 |
 
-**Remote access.** The app listens on localhost by default. To reach it from your phone, use [Tailscale](https://tailscale.com) or a reverse proxy with HTTPS (Caddy, Traefik, nginx), and set `DATACLEANER_BASE_URL=https://your-name` (add the new redirect URIs to your Google/Microsoft apps). Don't expose it to the internet over plain HTTP.
+**Remote access.** The app listens on localhost by default. To reach it from your phone, use [Tailscale](https://tailscale.com) or a reverse proxy with HTTPS (Caddy, Traefik, nginx), and set `DATACLEANER_BASE_URL=https://your-name` (add the new redirect URIs to your Google/Microsoft apps). Don't expose it to the internet over plain HTTP. [docs/docker.md](docs/docker.md#behind-a-reverse-proxy) has tested proxy configs.
 
 **Backups.** With Docker, copy the data volume out (stop the app first so the database is consistent):
 
@@ -173,7 +183,7 @@ docker compose cp datacleaner:/data ./datacleaner-backup
 docker compose start datacleaner
 ```
 
-The copy holds your encrypted personal data, so keep it somewhere private.
+The copy holds your encrypted personal data, so keep it somewhere private. To restore, see [docs/docker.md](docs/docker.md#backup-and-restore).
 
 Without Docker, back up the `data/` directory. If you set `DATACLEANER_SECRET_KEY`, store it separately, because the database is useless without it.
 
