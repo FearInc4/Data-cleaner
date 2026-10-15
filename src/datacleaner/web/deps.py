@@ -125,6 +125,9 @@ def csrf_token(request: Request) -> str:
 async def csrf_protect(request: Request) -> None:
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
+    route = request.scope.get("route")
+    if route is not None and getattr(route, "path", "").startswith("/api/ext/"):
+        return  # the browser extension's API: bearer-token only, never authenticated by cookie
     form = await request.form()
     given = form.get("csrf") or request.headers.get("x-csrf-token")
     if not csrf_matches(request.session.get("csrf"), str(given) if given else None):

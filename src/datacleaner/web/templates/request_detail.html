@@ -48,6 +48,7 @@
     <form method="post" action="/requests/{{ req.id }}/assist" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit" title="Opens a browser window with the form pre-filled">Open pre-filled in a browser</button></form>
     {% endif %}
   </div>
+  {% if req.broker.opt_out_url and req.status in ("awaiting_user", "needs_user_action") %}<p class="help">The <a href="/account#extension">Data Cleaner browser extension</a> can fill this form for you and mark it submitted.</p>{% endif %}
   <h3>Your details to paste</h3>
   <table>
     {% set p = req.profile %}

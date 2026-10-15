@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Cleaner</title>
+  <link rel="stylesheet" href="popup.css">
+  <script type="module" src="popup.js"></script>
+</head>
+<body>
+  <header>
+    <img src="icons/icon-32.png" alt="" width="20" height="20">
+    <h1>Data Cleaner</h1>
+  </header>
+
+  <p id="message" class="message" role="status" hidden></p>
+
+  <section id="pair-view" hidden>
+    <p>Pair this browser with your Data Cleaner. In the app, open <strong>Account &amp; security → Browser extension</strong> and create a pairing code.</p>
+    <form id="pair-form">
+      <label for="base">Data Cleaner address</label>
+      <input id="base" name="base" type="url" placeholder="http://localhost:25326" required autocomplete="url">
+      <label for="token">Pairing code</label>
+      <input id="token" name="token" type="password" placeholder="dcx_…" required autocomplete="off" spellcheck="false">
+      <button type="submit" class="primary">Pair</button>
+    </form>
+  </section>
+
+  <section id="main-view" hidden>
+    <div id="here" class="card" hidden>
+      <p class="eyebrow">This page</p>
+      <h2 id="here-broker"></h2>
+      <p id="here-profile" class="muted"></p>
+      <ol id="here-steps" class="steps" hidden></ol>
+      <div class="actions">
+        <button type="button" id="fill" class="primary">Fill the form</button>
+        <button type="button" id="submitted">I submitted it</button>
+      </div>
+      <input id="note" type="text" maxlength="300" placeholder="Optional note, e.g. confirmation number">
+    </div>
+
+    <h2 class="list-head">Forms waiting on you</h2>
+    <ul id="tasks" class="tasks"></ul>
+    <p id="empty" class="muted" hidden>Nothing waiting. New web-form requests show up here.</p>
+
+    <footer>
+      <span id="who" class="muted"></span>
+      <button type="button" id="unpair" class="link">Unpair</button>
+    </footer>
+  </section>
+</body>
+</html>

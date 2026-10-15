@@ -44,11 +44,21 @@ datacleaner serve           # prints your setup link
 
 For web search without Docker, run your own SearXNG or add a Brave Search API key in Settings.
 
-**Assisted form filling (optional, desktop only).** Data Cleaner can open a broker's opt-out form in a real browser window, pre-filled with your details. You check it, solve the CAPTCHA, and submit.
+**Assisted form filling (optional, desktop only).** Data Cleaner can open a broker's opt-out form in a real browser window, pre-filled with your details. You check it, solve the CAPTCHA, and submit. The [browser extension](#browser-extension) does the same in your everyday browser and also works with Docker or a remote install.
 
 ```bash
 pip install -e ".[browser]" && playwright install chromium
 ```
+
+### Browser extension
+
+Most opt-outs are web forms. The Data Cleaner extension fills them for you in Chrome, Edge, Brave or Firefox: open the broker's form, click the extension, choose **Fill the form**, check the details, solve any CAPTCHA and press Submit. Then choose **I submitted it**, and Data Cleaner schedules the follow-ups.
+
+1. In Data Cleaner, open **Account & security → Browser extension** and download the extension. Unzip it.
+2. **Chrome / Edge / Brave:** go to `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked** and pick the unzipped folder. **Firefox:** go to `about:debugging#/runtime/this-firefox` and choose **Load Temporary Add-on** (Firefox removes temporary add-ons when it restarts until the extension is published on addons.mozilla.org).
+3. Create a pairing code on the same page, open the extension, and enter your Data Cleaner address and the code.
+
+The extension only fills forms on the broker's own website, over HTTPS. It fetches your details for one form at a time and never stores them, and it can't see anything else in Data Cleaner. Unpair a browser any time on the Account page.
 
 ---
 
@@ -77,7 +87,7 @@ Prefer not to? Any provider still works over SMTP/IMAP with an app password (**S
 With Gmail, Outlook, iCloud, Fastmail, Proton and most custom domains, the part after a `+` is delivered to you as normal. Data Cleaner gives every broker its own:
 
 - Email requests set `Reply-To: you+dc-spokeo-1@gmail.com`.
-- Web-form requests show that address to paste into the broker's form (and assisted fill uses it).
+- Web-form requests show that address to paste into the broker's form (assisted fill and the browser extension use it).
 - Incoming mail to it is matched to the right request, even when the broker's system never quotes our reference.
 - Mail at that address from anyone other than the broker is flagged: *"Spokeo may have shared or leaked your address."*
 

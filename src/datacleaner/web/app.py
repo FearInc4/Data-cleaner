@@ -124,8 +124,9 @@ def create_app(config: Config | None = None, *, start_scheduler: bool | None = N
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    from .routes import account, auth, brokers, dashboard, exposure, oauth_routes, profiles, requests, settings, spam
+    from .routes import (account, auth, brokers, dashboard, exposure, extension, oauth_routes, profiles, requests,
+                         settings, spam)
 
-    for module in (auth, oauth_routes, account, dashboard, profiles, brokers, requests, exposure, spam, settings):
+    for module in (auth, oauth_routes, account, dashboard, profiles, brokers, requests, exposure, spam, settings, extension):
         app.include_router(module.router)
     return app
