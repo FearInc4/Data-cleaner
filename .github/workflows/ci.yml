@@ -63,6 +63,9 @@ jobs:
       - name: Lock file matches pyproject.toml
         run: |
           pip install uv
+          # Start from the current lock so uv keeps its pins: this fails when pyproject.toml
+          # changed without regenerating the lock, not whenever a dependency publishes a release.
+          cp requirements.lock /tmp/requirements.lock
           uv pip compile -q pyproject.toml --python-version 3.12 --generate-hashes -o /tmp/requirements.lock
           diff <(grep -E '^[a-z0-9].*==' requirements.lock) <(grep -E '^[a-z0-9].*==' /tmp/requirements.lock) \
             || (echo "requirements.lock is stale: run the command at the top of the file" && exit 1)
