@@ -68,7 +68,7 @@
   <form method="post" action="/spam/unsubscribe/scan" class="actions">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label for="udays" class="inline">Scan the last</label> <input id="udays" class="narrow" type="number" name="days" value="60" min="1" max="365"> <span>days</span>
-    <button type="submit" {{ 'disabled' if not has_imap }}>Scan inbox</button>{% if not has_imap %} <small class="muted">Connect IMAP in Settings first.</small>{% endif %}
+    <button type="submit" {{ 'disabled' if not has_imap }}>Scan inbox</button>{% if not has_imap %} <small class="muted">Connect your mailbox in <a href="/settings#email">Settings</a> first.</small>{% endif %}
   </form>
   {% if senders %}
   <form method="post" action="/spam/unsubscribe">

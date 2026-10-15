@@ -55,7 +55,7 @@ def setup_page(request: Request, token: str | None = None, db: Session = Depends
             request.session["setup_ok"] = True
         else:
             _failures.setdefault(key, []).append(time.monotonic())
-            flash(request, "That setup token isn't right. Copy it again from the server log or data/setup-token.", "error")
+            flash(request, "That setup token isn't right. Copy it again from the server log (or the setup-token file in the data directory).", "error")
         return redirect("/setup")  # drop the token from the address bar and history
     app_state.ensure_setup_token(db)
     return render(request, db, "setup.html", setup_ok=bool(request.session.get("setup_ok")),

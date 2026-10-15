@@ -23,13 +23,14 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - ./data:/data
+      # A named volume (not ./data) so the non-root container owns it on every OS.
+      - datacleaner-data:/data
     environment:
       DATACLEANER_SEARXNG_URL: http://searxng:8080
       # The address you open in your browser. Needed for Google/Microsoft sign-in
       # when it isn't http://localhost:8080 (https:// also turns on secure cookies + HSTS).
       DATACLEANER_BASE_URL: ${DATACLEANER_BASE_URL:-}
-      # Keep the encryption key outside ./data so a copied backup alone can't be decrypted.
+      # Keep the encryption key outside the data volume so a copied backup alone can't be decrypted.
       DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY:-}
       DATACLEANER_GOOGLE_CLIENT_ID: ${DATACLEANER_GOOGLE_CLIENT_ID:-}
       DATACLEANER_GOOGLE_CLIENT_SECRET: ${DATACLEANER_GOOGLE_CLIENT_SECRET:-}
@@ -58,3 +59,6 @@ services:
       - SETGID
       - SETUID
     mem_limit: 512m
+
+volumes:
+  datacleaner-data:

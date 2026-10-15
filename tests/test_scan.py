@@ -1,6 +1,9 @@
+import sqlite3
+
 import httpx
 from sqlalchemy import select
 
+from datacleaner.breach.providers import Exposure, run_breach_check
 from datacleaner.models import Broker, Finding, FindingKind, FindingStatus
 from datacleaner.scan.brokers import check_brokers, check_listing
 from datacleaner.scan.matcher import phone_formats, profile_terms, score_text
@@ -115,3 +118,71 @@ def test_check_brokers_skips_other_regions(session, now):
 def test_found_beats_embedded_captcha(profile):
     page = _client({"x": httpx.Response(200, text="<script src='recaptcha.js'></script>captcha<h1>Jane Doe</h1> San Francisco, CA")})
     assert check_listing(page, "https://x.example", profile).state == "found"
+
+
+def test_no_results_page_repeating_the_search_is_not_a_listing(profile):
+    # People-search sites echo the searched name and city back on their "nothing found" page.
+    for page in ("<h1>No results found for Jane Doe in San Francisco, CA</h1>",
+                 "<p>We couldn't find anyone named Jane Doe in San Francisco, CA.</p>",
+                 "Your search for Jane Doe, San Francisco CA did not return any results."):
+        assert check_listing(_client({"x": httpx.Response(200, text=page)}), "https://x.example", profile).state == "not_found"
+    hit = "<h2>10 results for Jane Doe</h2><p>Jane Doe, 40, San Francisco, CA</p>"
+    assert check_listing(_client({"x": httpx.Response(200, text=hit)}), "https://x.example", profile).state == "found"
+
+
+# --- scans must not hold SQLite's write lock while they wait on the network --------
+
+def _can_write(session) -> bool:
+    con = sqlite3.connect(session.get_bind().url.database, timeout=0.2)
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute("ROLLBACK")
+        return True
+    except sqlite3.OperationalError:  # "database is locked"
+        return False
+    finally:
+        con.close()
+
+
+class LockProbeBreaches:
+    name = "probe"
+    supports = {"email", "username", "phone"}
+
+    def __init__(self, session):
+        self.session, self.writable = session, []
+
+    def lookup(self, identifier, kind):
+        self.writable.append(_can_write(self.session))
+        return [Exposure(kind="breach", source="probe", name=f"Leak {kind}", identifier=identifier)]
+
+
+class LockProbeSearch(FakeProvider):
+    def __init__(self, session, results):
+        super().__init__(results)
+        self.session, self.writable = session, []
+
+    def search(self, query):
+        self.writable.append(_can_write(self.session))
+        return super().search(query)
+
+
+def test_scans_leave_the_database_writable(session, profile, now):
+    breaches = LockProbeBreaches(session)
+    run_breach_check(session, profile, [breaches], now=now, delay=0)
+    assert breaches.writable == [True, True, True]
+
+    results = [SearchResult(url="https://people.example/jane", title="Jane Doe - San Francisco, CA", snippet="Age 40")]
+    search = LockProbeSearch(session, results)
+    run_search_scan(session, profile, search, now=now, delay=0)
+    assert search.writable and all(search.writable)
+
+    writable = []
+
+    def handler(request):
+        writable.append(_can_write(session))
+        return httpx.Response(200, text="Jane Doe age 40 San Francisco CA")
+
+    ids = [b.id for b in session.scalars(select(Broker).where(Broker.search_url.is_not(None)).limit(3))]
+    check_brokers(session, profile, client=httpx.Client(transport=httpx.MockTransport(handler)), broker_ids=ids,
+                  now=now, delay=0)
+    assert writable and all(writable)

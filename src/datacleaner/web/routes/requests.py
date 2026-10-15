@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ...brokers import render_search_url, search_values_for
 from ...db import session_scope
 from ...jurisdictions import broker_serves, resolve_law
+from ...mail.transport import describe
 from ...models import Broker, Profile, Relation, RemovalRequest, RequestStatus, User, utcnow
 from ...removal import engine
 from ...settings import Settings
@@ -87,9 +88,9 @@ async def create_requests(request: Request, profile_id: int = Form(...), db: Ses
 @router.post("/approve-all")
 def approve_all(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
     settings = Settings(db)
-    if not (settings.smtp_host and settings.from_address):
-        flash(request, "Set up outgoing email on the Settings page first.", "error")
-        return redirect("/settings")
+    if not describe(db)["can_send"]:
+        flash(request, "Connect your email (Gmail, Outlook or SMTP) on the Settings page first.", "error")
+        return redirect("/settings#email")
     now = utcnow()
     n = 0
     for req in db.scalars(select(RemovalRequest).where(RemovalRequest.profile_id == profile_id,

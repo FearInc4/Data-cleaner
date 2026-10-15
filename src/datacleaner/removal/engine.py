@@ -80,8 +80,15 @@ def _next_step_index(req: RemovalRequest, steps: list[Step]) -> int:
     return idx
 
 
+# Minimum spacing between cadence actions, so a broker never gets a burst of emails
+# (e.g. after downtime or a long pause). The final notice promises 7 days before escalating.
+MIN_EMAIL_GAP = timedelta(days=3)
+ESCALATE_GAP = timedelta(days=7)
+
+
 def schedule_next(req: RemovalRequest, settings: Settings) -> None:
-    if req.first_sent_at is None or req.status in RequestStatus.TERMINAL or req.paused:
+    # due_at is None while the current attempt hasn't gone out yet (see approve()).
+    if req.first_sent_at is None or req.due_at is None or req.status in RequestStatus.TERMINAL or req.paused:
         req.next_action_at = None
         return
     if req.status in (RequestStatus.NEEDS_VERIFICATION, RequestStatus.NEEDS_USER_ACTION, RequestStatus.REJECTED):
@@ -93,7 +100,30 @@ def schedule_next(req: RemovalRequest, settings: Settings) -> None:
     if idx >= len(steps):
         req.next_action_at = None
         return
-    req.next_action_at = req.first_sent_at + timedelta(days=steps[idx].offset_days)
+    at = req.first_sent_at + timedelta(days=steps[idx].offset_days)
+    if req.last_action_at:
+        at = max(at, req.last_action_at + (ESCALATE_GAP if steps[idx].action == "escalate" else MIN_EMAIL_GAP))
+    req.next_action_at = at
+
+
+def _reset_cadence(req: RemovalRequest) -> None:
+    """A fresh attempt (re-sent letter, re-submitted form) gets the full follow-up schedule."""
+    req.cadence_step = 0
+    req.followup_count = 0
+    req.escalated_at = None
+    req.last_action_at = None
+    req.next_action_at = None
+    req.due_at = None
+
+
+def cancel_queued(session: Session, req: RemovalRequest) -> int:
+    """Withdraw mail for this request that hasn't gone out yet."""
+    n = 0
+    for msg in session.scalars(select(OutboxMessage).where(OutboxMessage.request_id == req.id,
+                                                           OutboxMessage.status == "queued")):
+        msg.status = "cancelled"
+        n += 1
+    return n
 
 
 # --- helpers ----------------------------------------------------------------
@@ -193,7 +223,9 @@ def approve(session: Session, req: RemovalRequest, *, now: datetime) -> OutboxMe
         request_id=req.id, kind="initial", to_address=req.to_address, subject=letter.subject,
         body=letter.body, message_id=_message_id(req.reference, session), reply_to=ensure_alias(session, req), created_at=now,
     )
+    cancel_queued(session, req)  # never two copies of the letter in flight
     session.add(msg)
+    _reset_cadence(req)
     req.status = RequestStatus.QUEUED
     add_event(session, req, "queued", f"Queued email to {req.to_address}", now=now)
     return msg
@@ -211,6 +243,8 @@ def on_message_sent(session: Session, msg: OutboxMessage, *, now: datetime) -> N
     add_event(session, req, type_, f"Sent {KIND_LABELS.get(msg.kind, msg.kind)} to {msg.to_address}", now=now,
               direction="out", body=msg.body, message_id=msg.message_id)
     req.last_sent_at = now
+    if req.status in RequestStatus.TERMINAL:
+        return  # completed/cancelled while this was in flight; don't bring it back to life
     if msg.kind == "initial":
         req.first_sent_at = now
         req.due_at = now + timedelta(days=law.deadline_days)
@@ -238,7 +272,8 @@ def mark_submitted(session: Session, req: RemovalRequest, *, now: datetime, note
     """Human says they submitted the web form / made the call / mailed the letter."""
     law = resolve_law(req.profile.country, req.profile.region)
     add_event(session, req, "submitted", note or f"Submitted via {req.method}", now=now)
-    req.first_sent_at = req.first_sent_at or now
+    _reset_cadence(req)
+    req.first_sent_at = now
     req.last_sent_at = now
     req.due_at = req.first_sent_at + timedelta(days=law.deadline_days)
     req.status = RequestStatus.SENT
@@ -255,6 +290,7 @@ def mark_completed(session: Session, req: RemovalRequest, *, now: datetime, summ
     req.completed_at = now
     req.next_action_at = None
     req.recheck_at = now + timedelta(days=int(settings.recheck_days))
+    cancel_queued(session, req)
     add_event(session, req, "completed", summary, now=now)
 
 
@@ -265,6 +301,8 @@ def set_status(session: Session, req: RemovalRequest, status: str, *, now: datet
         mark_completed(session, req, now=now, summary=summary)
         return
     req.status = status
+    if status in RequestStatus.TERMINAL:
+        cancel_queued(session, req)
     add_event(session, req, "status", summary, now=now)
     session.flush()
     schedule_next(req, Settings(session))
@@ -274,7 +312,12 @@ def resume(session: Session, req: RemovalRequest, *, now: datetime) -> None:
     """After the human dealt with a verification/info request, carry on the cadence."""
     req.paused = False
     if req.status in (RequestStatus.NEEDS_VERIFICATION, RequestStatus.NEEDS_USER_ACTION):
-        req.status = RequestStatus.ACKNOWLEDGED if req.last_reply_at else RequestStatus.SENT
+        # approve() clears due_at; sending or submitting sets it again.
+        if req.first_sent_at is None or req.due_at is None:
+            # This attempt never went out (e.g. the email failed): back to the start.
+            req.status = RequestStatus.DRAFT if req.method == "email" else RequestStatus.AWAITING_USER
+        else:
+            req.status = RequestStatus.ACKNOWLEDGED if req.last_reply_at else RequestStatus.SENT
     add_event(session, req, "resumed", "Follow-ups resumed", now=now)
     session.flush()
     schedule_next(req, Settings(session))
@@ -337,8 +380,14 @@ def process_due(session: Session, *, now: datetime) -> dict[str, int]:
             req.cadence_step = idx
             req.next_action_at = None
             continue
+        # After downtime or a pause several reminders can be overdue at once: send only the
+        # latest one. The final notice and the escalation are never skipped.
+        while (idx + 1 < len(steps) and steps[idx].action == "followup" and req.first_sent_at
+               and req.first_sent_at + timedelta(days=steps[idx + 1].offset_days) <= now):
+            idx += 1
         step = steps[idx]
         req.cadence_step = idx + 1
+        req.last_action_at = now
         if step.action == "escalate":
             escalate(session, req, now=now)
             stats["escalate"] += 1

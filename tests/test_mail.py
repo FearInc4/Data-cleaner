@@ -4,9 +4,10 @@ from email.message import EmailMessage
 import pytest
 from sqlalchemy import select
 
-from datacleaner.mail.inbox import match_request, process_inbox
+from datacleaner.mail.inbox import ImapSource, match_request, process_inbox
 from datacleaner.mail.parse import ReplyKind, classify, find_reference, parse_message, verification_links
 from datacleaner.mail.smtp import drain_outbox
+from datacleaner.mail.trust import MICROSOFT, authenticated_domain, authserv_id, imap_authserv
 from datacleaner.models import Broker, RequestStatus
 from datacleaner.removal import engine
 from datacleaner.settings import Settings
@@ -14,12 +15,13 @@ from datacleaner.settings import Settings
 from .test_engine import FakeMailer, _configure
 
 
-def build(subject, body, *, sender="privacy@mylife.com", html=None, in_reply_to=None, headers=None):
+def build(subject, body, *, sender="privacy@mylife.com", html=None, in_reply_to=None, headers=None,
+          msg_id="<reply-1@mylife.com>"):
     m = EmailMessage()
     m["From"] = f"MyLife Privacy <{sender}>"
     m["To"] = "privacy@me.example"
     m["Subject"] = subject
-    m["Message-ID"] = "<reply-1@mylife.com>"
+    m["Message-ID"] = msg_id
     m["Date"] = "Mon, 09 Mar 2026 10:00:00 +0000"
     if in_reply_to:
         m["In-Reply-To"] = in_reply_to
@@ -33,11 +35,14 @@ def build(subject, body, *, sender="privacy@mylife.com", html=None, in_reply_to=
 
 
 class FakeSource:
-    def __init__(self, raws):
-        self.raws = raws
+    def __init__(self, raws, authserv=None):
+        self.raws, self.authserv = raws, authserv
 
     def fetch_new(self, session):
-        return [parse_message(r, uid=str(i)) for i, r in enumerate(self.raws)]
+        out = [parse_message(r, uid=str(i)) for i, r in enumerate(self.raws)]
+        for m in out:
+            m.authserv = self.authserv
+        return out
 
 
 @pytest.mark.parametrize("body,kind", [
@@ -145,3 +150,79 @@ def test_inbox_unknown_reply_keeps_clock_running(session, profile, now):
     assert req.status == RequestStatus.ACKNOWLEDGED
     assert req.next_action_at == now + timedelta(days=45)
     assert any(e.type == "review" for e in req.events)
+
+
+# --- spoofing and quoting ---------------------------------------------------------
+
+def test_reply_to_a_spoofed_message_is_not_trusted(session, profile, now):
+    req, _ = _sent_request(session, profile, now)
+    # A spoofed "broker" email is only flagged for review...
+    fake = build("About your request", "Hello, about your request.", msg_id="<spoof-1@mylife.com>")
+    assert process_inbox(session, FakeSource([fake]), now=now)["unverified"] == 1
+    # ...and replying to it doesn't make the spoofer part of our thread.
+    follow = build("Re: About your request", "Your information has been removed from our site.",
+                   in_reply_to="<spoof-1@mylife.com>", msg_id="<spoof-2@mylife.com>")
+    stats = process_inbox(session, FakeSource([follow]), now=now)
+    assert stats["unverified"] == 1 and "completed" not in stats
+    assert req.status == RequestStatus.SENT and req.next_action_at is not None
+
+
+FORGED_AR = {"Authentication-Results": "mx.google.com; dkim=pass header.d=mylife.com; dmarc=pass header.from=mylife.com"}
+
+
+@pytest.mark.parametrize("authserv", [None, "mx.example.net"])
+def test_forged_authentication_results_are_ignored(session, profile, now, authserv):
+    # None: an IMAP provider we know nothing about (it may add no header of its own, leaving the
+    # sender's forged one on top). mx.example.net: our provider's header would be on top.
+    req, _ = _sent_request(session, profile, now)
+    raw = build("Done", "Your information has been removed from our site.", headers=FORGED_AR, msg_id="<f1@mylife.com>")
+    stats = process_inbox(session, FakeSource([raw], authserv=authserv), now=now)
+    assert stats["unverified"] == 1 and req.status == RequestStatus.SENT
+
+
+def test_authentication_results_from_our_provider_are_trusted(session, profile, now):
+    req, _ = _sent_request(session, profile, now)
+    raw = build("Done", "Your information has been removed from our site.", headers=FORGED_AR, msg_id="<g1@mylife.com>")
+    assert process_inbox(session, FakeSource([raw], authserv="mx.google.com"), now=now)["completed"] == 1
+
+
+def test_authserv_ids():
+    assert authserv_id("mx.google.com; dkim=pass header.i=@x.com") == "mx.google.com"
+    assert authserv_id("mx3.messagingengine.com 1; dkim=pass") == "mx3.messagingengine.com"
+    assert authserv_id("spf=pass (sender IP is 1.2.3.4) smtp.mailfrom=x.com; dkim=pass") is None  # Exchange Online
+    assert imap_authserv("imap.gmail.com") == "mx.google.com"
+    assert imap_authserv("mail.example.net") is None
+    assert imap_authserv("mail.example.net", " MX.Example.net ") == "mx.example.net"
+    assert ImapSource("imap.fastmail.com", 993, "u", "p").authserv == ".messagingengine.com"
+    ms = "spf=pass (sender IP is 1.2.3.4) smtp.mailfrom=mylife.com; dkim=pass header.d=mylife.com; dmarc=pass action=none header.from=mylife.com"
+    msg = parse_message(build("x", "y", headers={"Authentication-Results": ms}))
+    msg.authserv = MICROSOFT
+    assert authenticated_domain(msg) == "mylife.com"
+    msg = parse_message(build("x", "y", headers=FORGED_AR))
+    msg.authserv = MICROSOFT
+    assert authenticated_domain(msg) is None
+
+
+def test_outlook_quoted_followup_is_not_a_confirmation(session, profile, now):
+    req, msg_id = _sent_request(session, profile, now)
+    engine.process_due(session, now=now + timedelta(days=10))
+    drain_outbox(session, FakeMailer(), now=now + timedelta(days=10))
+    body = ("Thank you for contacting us. We will review your request.\n\n"
+            "From: Jane Doe <privacy@me.example>\nSent: Thursday, March 12, 2026 9:00 AM\nTo: privacy@mylife.com\n"
+            "Subject: Follow-up\n\nI have not received a response confirming that the request has been completed.")
+    stats = process_inbox(session, FakeSource([build("RE: Follow-up", body, in_reply_to=msg_id, msg_id="<o1@mylife.com>")]),
+                          now=now + timedelta(days=11))
+    assert stats["acknowledged"] == 1 and req.status == RequestStatus.ACKNOWLEDGED
+
+
+def test_our_own_wording_is_never_evidence():
+    ours = ["To the privacy team at MyLife:\n\nOn 2026-03-02 I sent you a request to delete my personal information. "
+            "I have not received a response confirming that the request has been completed."]
+    pasted = "Thanks for your email.\n\nI have not received a response confirming\nthat the request has been completed."
+    assert classify(parse_message(build("Re: x", pasted))).kind == ReplyKind.COMPLETED  # what used to happen
+    assert classify(parse_message(build("Re: x", pasted)), ours=ours).kind == ReplyKind.ACKNOWLEDGED
+    for sep in ("________________________________", "-----Original Message-----"):
+        quoted = f"Thanks for your email.\n{sep}\nYour request has been completed."
+        assert classify(parse_message(build("Re: x", quoted))).kind == ReplyKind.ACKNOWLEDGED
+    genuine = "Your request has been completed and your listing removed."
+    assert classify(parse_message(build("Re: x", genuine)), ours=ours).kind == ReplyKind.COMPLETED

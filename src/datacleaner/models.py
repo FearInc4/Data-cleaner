@@ -276,6 +276,7 @@ class RemovalRequest(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     recheck_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     escalated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_action_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # last cadence step taken
     paused: Mapped[bool] = mapped_column(Boolean, default=False)
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)  # a reply we couldn't verify
     reply_alias: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)  # per-broker address
@@ -318,9 +319,10 @@ class OutboxMessage(Base):
     reply_to: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
     in_reply_to: Mapped[str | None] = mapped_column(String(300), nullable=True)
     references: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="queued")  # queued, sent, failed
+    status: Mapped[str] = mapped_column(String(20), default="queued")  # queued, sent, failed, cancelled
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # retry backoff
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

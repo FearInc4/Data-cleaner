@@ -10,10 +10,10 @@ from email.message import EmailMessage
 from email.utils import format_datetime, formataddr
 from typing import Protocol
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from ..models import OutboxMessage
+from ..models import OutboxMessage, RemovalRequest, RequestStatus
 from ..removal import engine
 from ..settings import Settings
 from .transport import MailNotConfigured, get_mailer, sender_address
@@ -22,7 +22,24 @@ __all__ = ["MailNotConfigured", "Mailer", "SmtpMailer", "build_message", "drain_
 
 log = logging.getLogger(__name__)
 
-MAX_ATTEMPTS = 5
+# Transient failures (network down, provider hiccup) are retried with backoff for about
+# two and a half days before the request is handed back to the person.
+RETRY_DELAYS = [timedelta(minutes=m) for m in (5, 15, 60, 240, 720, 1440, 1440)]
+MAX_ATTEMPTS = len(RETRY_DELAYS) + 1
+
+
+def is_permanent(exc: Exception) -> bool:
+    """Errors that retrying won't fix: the recipient or message was refused."""
+    import httpx
+
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        return True
+    if isinstance(exc, smtplib.SMTPResponseException) and not isinstance(exc, smtplib.SMTPAuthenticationError):
+        return 500 <= exc.smtp_code < 600
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        return 400 <= code < 500 and code not in (408, 425, 429)
+    return False
 
 
 class Mailer(Protocol):
@@ -93,8 +110,20 @@ def drain_outbox(session: Session, mailer: Mailer | None, *, now: datetime) -> d
     settings = Settings(session)
     stats = {"sent": 0, "failed": 0, "deferred": 0}
     queued = session.scalars(
-        select(OutboxMessage).where(OutboxMessage.status == "queued").order_by(OutboxMessage.created_at)
+        select(OutboxMessage).where(
+            OutboxMessage.status == "queued",
+            or_(OutboxMessage.next_attempt_at.is_(None), OutboxMessage.next_attempt_at <= now),
+        ).order_by(OutboxMessage.created_at)
     ).all()
+    live = []
+    for msg in queued:
+        req = session.get(RemovalRequest, msg.request_id) if msg.request_id else None
+        if req is not None and req.status in RequestStatus.TERMINAL:
+            msg.status = "cancelled"  # completed/cancelled after this was queued
+            stats["cancelled"] = stats.get("cancelled", 0) + 1
+        else:
+            live.append(msg)
+    queued = live
     if not queued:
         return stats
     from .oauth_mail import MailAuthError
@@ -113,22 +142,28 @@ def drain_outbox(session: Session, mailer: Mailer | None, *, now: datetime) -> d
             continue
         try:
             mailer.send(build_message(msg, settings, now=now, sender=sender))
-        except MailAuthError as exc:
-            # The mailbox needs reconnecting; keep everything queued rather than failing requests.
-            log.warning("Mailbox needs reconnecting: %s", exc)
+        except (MailAuthError, smtplib.SMTPAuthenticationError) as exc:
+            # The mailbox needs reconnecting / a new password; keep everything queued rather than failing requests.
+            log.warning("Mail login failed: %s", exc)
+            msg.error = str(exc)[:1000]
             stats["deferred"] += len(queued) - i
             break
-        except Exception as exc:  # network errors, auth errors, refused recipients
+        except Exception as exc:  # network errors, refused recipients, provider errors
             msg.attempts += 1
             msg.error = str(exc)[:1000]
             log.warning("Send failed for outbox %s (attempt %s): %s", msg.id, msg.attempts, exc)
-            if msg.attempts >= MAX_ATTEMPTS or isinstance(exc, smtplib.SMTPRecipientsRefused):
+            if msg.attempts >= MAX_ATTEMPTS or is_permanent(exc):
                 msg.status = "failed"
+                msg.next_attempt_at = None
                 engine.on_message_failed(session, msg, str(exc), now=now)
                 stats["failed"] += 1
+            else:
+                msg.next_attempt_at = now + RETRY_DELAYS[min(msg.attempts, len(RETRY_DELAYS)) - 1]
+                stats["retrying"] = stats.get("retrying", 0) + 1
             continue
         msg.status = "sent"
         msg.sent_at = now
+        msg.next_attempt_at = None
         msg.attempts += 1
         budget -= 1
         stats["sent"] += 1

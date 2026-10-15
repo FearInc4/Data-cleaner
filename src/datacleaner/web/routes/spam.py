@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ...mail.transport import describe
 from ...models import MailingSender, SpamNumber, User, utcnow
 from ...settings import Settings
 from ...spam import dnc, unsubscribe
@@ -35,7 +36,7 @@ def spam_page(request: Request, number: str = "", db: Session = Depends(get_db),
     senders = db.scalars(select(MailingSender).order_by(MailingSender.status, MailingSender.messages.desc()).limit(300)).all()
     return render(request, db, "spam.html", profile=profile, items=items, done=_done(settings), top=top,
                   total_numbers=total_numbers, number=number, lookup=lookup, looked_up=bool(number),
-                  senders=senders, has_key=bool(settings.datagov_api_key), has_imap=bool(settings.imap_host), state=state)
+                  senders=senders, has_key=bool(settings.datagov_api_key), has_imap=describe(db)["can_read"], state=state)
 
 
 @router.post("/checklist")

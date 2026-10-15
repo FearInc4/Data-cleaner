@@ -40,6 +40,11 @@ def redact(text: str) -> str:
 
 class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
+        if record.name == "uvicorn.access" and isinstance(record.args, tuple) and not record.exc_info:
+            # uvicorn's access formatter unpacks these args (client, method, path, version, status),
+            # so scrub each one in place instead of flattening the message.
+            record.args = tuple(redact(a) if isinstance(a, str) else a for a in record.args)
+            return True
         try:
             message = record.getMessage()
         except Exception:  # malformed format args; leave untouched

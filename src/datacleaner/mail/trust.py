@@ -27,6 +27,18 @@ from .parse import IncomingMessage, find_reference
 
 STRONG = {"thread", "authenticated"}
 
+# Exchange Online stamps inbound mail with an Authentication-Results header that has
+# no authserv-id ("spf=pass ...; dkim=pass ...; dmarc=pass ...").
+MICROSOFT = "@microsoft"
+# authserv-id each well-known IMAP host's mail servers use. A leading "." matches any subdomain.
+IMAP_AUTHSERV = {
+    "imap.gmail.com": "mx.google.com",
+    "imap.googlemail.com": "mx.google.com",
+    "outlook.office365.com": MICROSOFT,
+    "imap-mail.outlook.com": MICROSOFT,
+    "imap.fastmail.com": ".messagingengine.com",
+}
+
 _DKIM_DOMAIN = re.compile(r"\bdkim\s*=\s*pass\b[^;]*?\bheader\.(?:d|i)\s*=\s*@?([A-Za-z0-9.-]+)", re.I)
 _DMARC_FROM = re.compile(r"\bdmarc\s*=\s*pass\b[^;]*?\bheader\.from\s*=\s*([A-Za-z0-9.-]+)", re.I)
 
@@ -38,13 +50,40 @@ def _broker_domains(req: RemovalRequest) -> list[str]:
     return domains
 
 
-def top_authentication_results(msg: IncomingMessage) -> str:
-    """The topmost Authentication-Results header: the one our own mail provider added.
+def imap_authserv(host: str, configured: str | None = None) -> str | None:
+    """The authserv-id to expect for mail read over IMAP from ``host``."""
+    if configured and configured.strip():
+        return configured.strip().lower()
+    return IMAP_AUTHSERV.get((host or "").strip().lower())
 
-    Headers lower down may have been forged by the sender, so only the first counts.
+
+def authserv_id(header: str) -> str | None:
+    """The authserv-id an Authentication-Results header starts with (RFC 8601), if any."""
+    first = re.sub(r"\([^)]*\)", " ", header.split(";", 1)[0]).strip()
+    if not first or "=" in first:
+        return None
+    return first.split()[0].lower()
+
+
+def _authserv_ok(found: str | None, expected: str) -> bool:
+    if expected == MICROSOFT:
+        return found is None
+    if expected.startswith("."):
+        return bool(found) and found.endswith(expected)
+    return found == expected
+
+
+def top_authentication_results(msg: IncomingMessage) -> str:
+    """The topmost Authentication-Results header, if our own mail provider added it.
+
+    Headers lower down may have been forged by the sender, so only the first counts,
+    and only when it carries our provider's authserv-id. A provider that doesn't add
+    its own header would otherwise leave a forged one on top.
     """
     raw = msg.raw_headers.get("authentication-results") or []
-    return raw[0] if raw else ""
+    if not raw or not msg.authserv:
+        return ""
+    return raw[0] if _authserv_ok(authserv_id(raw[0]), msg.authserv) else ""
 
 
 def authenticated_domain(msg: IncomingMessage) -> str | None:

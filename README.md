@@ -31,7 +31,7 @@ docker compose up -d
 
 Then run `docker compose logs datacleaner` and open the **setup link** it prints (`http://localhost:8080/setup?token=…`). The one-time token makes sure nobody else can claim your install. A short guided setup takes it from there: connect your email, add your details, pick brokers, send.
 
-This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network. Everything is stored in `./data`.
+This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network. Everything is stored in the `datacleaner-data` Docker volume.
 
 ### Without Docker
 
@@ -155,7 +155,17 @@ Most settings live on the in-app **Settings** page. Process-level options are en
 
 **Remote access.** The app listens on localhost by default. To reach it from your phone, use [Tailscale](https://tailscale.com) or a reverse proxy with HTTPS (Caddy, Traefik, nginx), and set `DATACLEANER_BASE_URL=https://your-name` (add the new redirect URIs to your Google/Microsoft apps). Don't expose it to the internet over plain HTTP.
 
-**Backups.** Back up the `data/` directory. If you set `DATACLEANER_SECRET_KEY`, store it separately, because the database is useless without it.
+**Backups.** With Docker, copy the data volume out (stop the app first so the database is consistent):
+
+```bash
+docker compose stop datacleaner
+docker compose cp datacleaner:/data ./datacleaner-backup
+docker compose start datacleaner
+```
+
+The copy holds your encrypted personal data, so keep it somewhere private.
+
+Without Docker, back up the `data/` directory. If you set `DATACLEANER_SECRET_KEY`, store it separately, because the database is useless without it.
 
 ---
 

@@ -1,4 +1,5 @@
 import hashlib
+from datetime import timedelta
 
 import httpx
 from sqlalchemy import select
@@ -11,7 +12,7 @@ from datacleaner.breach.providers import (
     advice_for,
     run_breach_check,
 )
-from datacleaner.models import Finding, FindingKind
+from datacleaner.models import Finding, FindingKind, FindingStatus
 
 
 def mock(handler):
@@ -69,6 +70,17 @@ def test_run_breach_check_dedupes(session, profile, now):
     assert run.summary["new"] == 0
     kinds = sorted(f.kind for f in session.scalars(select(Finding)))
     assert kinds == [FindingKind.BREACH, FindingKind.PASTE]
+
+
+def test_resolved_breach_stays_resolved(session, profile, now):
+    provider = XposedOrNot(client=mock(lambda r: httpx.Response(200, json=XON)))
+    run_breach_check(session, profile, [provider], now=now, delay=0)
+    for f in session.scalars(select(Finding)):
+        f.status = FindingStatus.RESOLVED
+    # Providers report the same breaches on every weekly check.
+    run = run_breach_check(session, profile, [provider], now=now + timedelta(days=7), delay=0)
+    assert run.summary["new"] == 0
+    assert {f.status for f in session.scalars(select(Finding))} == {FindingStatus.RESOLVED}
 
 
 def test_provider_errors_are_reported_not_raised(session, profile, now):

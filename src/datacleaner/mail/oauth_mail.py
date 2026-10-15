@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from .. import oauth
 from ..models import MailAccount, utcnow
 from .parse import IncomingMessage, parse_message
+from .trust import MICROSOFT
 
 log = logging.getLogger(__name__)
 
@@ -145,9 +146,12 @@ class GmailSource:
             if int(data.get("sizeEstimate", 0)) > MAX_MESSAGE_BYTES:
                 continue
             try:
-                out.append(parse_message(_b64url_decode(data.get("raw", "")), uid=mid))
+                msg = parse_message(_b64url_decode(data.get("raw", "")), uid=mid)
             except Exception:
                 log.exception("Could not parse Gmail message")
+            else:
+                msg.authserv = "mx.google.com"
+                out.append(msg)
             ts = int(data.get("internalDate", 0)) / 1000
             if ts:
                 when = datetime.fromtimestamp(ts, UTC).replace(tzinfo=None)
@@ -221,9 +225,12 @@ class GraphSource:
             if len(resp.content) > MAX_MESSAGE_BYTES:
                 continue
             try:
-                out.append(parse_message(resp.content, uid=m["id"]))
+                msg = parse_message(resp.content, uid=m["id"])
             except Exception:
                 log.exception("Could not parse Graph message")
+            else:
+                msg.authserv = MICROSOFT
+                out.append(msg)
         _remember(acc, [m["id"] for m in items if m.get("id")], newest)
         return out
 

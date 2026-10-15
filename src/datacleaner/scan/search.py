@@ -116,8 +116,7 @@ def build_queries(profile: Profile, limit: int = 12) -> list[str]:
 def run_search_scan(session: Session, profile: Profile, provider: SearchProvider, *, now: datetime | None = None,
                     delay: float = 1.0) -> ScanRun:
     now = now or utcnow()
-    run = ScanRun(profile=profile, kind="search", started_at=now)
-    session.add(run)
+    session.commit()  # don't hold a write lock during network calls
     terms = profile_terms(profile)
     seen: dict[str, SearchResult] = {}
     errors = []
@@ -146,8 +145,9 @@ def run_search_scan(session: Session, profile: Profile, provider: SearchProvider
         )
         total += 1
         new += int(created)
-    run.finished_at = utcnow()
-    run.status = "error" if errors and not seen else "done"
-    run.summary = {"provider": provider.name, "queries": len(queries), "results": len(seen),
-                   "findings": total, "new": new, "errors": errors[:5]}
+    run = ScanRun(profile=profile, kind="search", started_at=now, finished_at=utcnow(),
+                  status="error" if errors and not seen else "done",
+                  summary={"provider": provider.name, "queries": len(queries), "results": len(seen),
+                           "findings": total, "new": new, "errors": errors[:5]})
+    session.add(run)
     return run

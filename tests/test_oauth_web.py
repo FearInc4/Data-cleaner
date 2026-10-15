@@ -214,6 +214,32 @@ def test_expired_token_refreshes_and_revoked_token_pauses(client, idp):
     assert "needs reconnecting" in client.get("/settings").text
 
 
+def test_revoked_token_seen_while_reading_mail_is_shown(client, idp):
+    _gmail_request(client, idp)  # nothing left in the outbox: the inbox read is the first to notice
+    with session_scope() as s:
+        s.scalars(select(MailAccount)).one().access_expires_at = utcnow()
+    idp.refresh_ok = False
+    tick(deps=TickDeps(run_scans=False))
+    with session_scope() as s:
+        assert s.scalars(select(MailAccount)).one().status == "needs_reconnect"
+    assert "needs reconnecting" in client.get("/settings").text
+
+
+def test_send_all_and_inbox_scan_work_with_a_connected_mailbox(client, idp):
+    setup_with(client, idp, "google")
+    with session_scope() as s:
+        p = make_profile(s, emails=["jane.doe@gmail.com"])
+        broker = s.scalars(select(Broker).where(Broker.slug == "mylife")).one()
+        req, _ = engine.create_request(s, p, broker, now=utcnow())
+        rid, pid = req.id, p.id
+    r = client.post("/requests/approve-all", data={"csrf": csrf(client, "/requests"), "profile_id": pid},
+                    follow_redirects=False)
+    assert r.headers["location"] == f"/requests?profile_id={pid}"
+    with session_scope() as s:
+        assert s.get(RemovalRequest, rid).status == RequestStatus.QUEUED
+    assert "disabled>Scan inbox" not in client.get("/spam").text
+
+
 def test_disconnect_revokes(client, idp):
     setup_with(client, idp)
     with session_scope() as s:

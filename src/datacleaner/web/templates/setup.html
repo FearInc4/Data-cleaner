@@ -4,7 +4,7 @@
 <div class="auth-box card">
   <h1>Welcome to Data Cleaner</h1>
   {% if not setup_ok %}
-  <p>To make sure only you can set up this install, paste the <strong>setup token</strong>. It's printed in the server's output when it starts, and saved in <code>data/setup-token</code>.</p>
+  <p>To make sure only you can set up this install, paste the <strong>setup token</strong>. It's printed in the server's output when it starts, and saved as <code>setup-token</code> in the data directory.</p>
   <p class="help">Docker: run <code>docker compose logs datacleaner</code> and click the link it shows.</p>
   <form method="get" action="/setup">
     <label for="token">Setup token</label>

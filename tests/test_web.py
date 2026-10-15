@@ -117,7 +117,7 @@ def test_full_flow(client, tmp_path):
     # Sending needs mail settings.
     tok = csrf(client, "/requests")
     r = client.post("/requests/approve-all", data={"csrf": tok, "profile_id": pid}, follow_redirects=False)
-    assert r.headers["location"] == "/settings"
+    assert r.headers["location"] == "/settings#email"
     tok = csrf(client, "/settings")
     client.post("/settings", data={"csrf": tok, "smtp_host": "smtp.example.com", "smtp_port": "587", "smtp_security": "starttls",
                                    "smtp_username": "me", "smtp_password": "app-pass-123", "from_address": "privacy@me.example",

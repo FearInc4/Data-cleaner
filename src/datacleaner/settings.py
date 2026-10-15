@@ -39,6 +39,10 @@ DEFS: list[SettingDef] = [
     SettingDef("imap_username", "", "private", label="IMAP username", group="Email (reading replies)"),
     SettingDef("imap_password", "", "secret", "IMAP password / app password", group="Email (reading replies)"),
     SettingDef("imap_folder", "INBOX", label="Folder to watch", group="Email (reading replies)"),
+    SettingDef("imap_authserv_id", "", label="Your mail server's Authentication-Results id", group="Email (reading replies)",
+               help="Optional. Known for Gmail, Outlook and Fastmail. For other providers, the name at the start of the "
+                    "Authentication-Results header your provider adds (e.g. mx.example.net). Blank: replies are only trusted "
+                    "if they quote our request."),
     # Per-broker addresses
     SettingDef("alias_mode", "plus", "choice", "Give each broker its own address", group="Per-broker addresses",
                choices=("plus", "catchall", "off"),
@@ -111,7 +115,8 @@ class Settings:
         defn = DEF_BY_KEY.get(key)
         if row is None or row.value is None:
             return defn.default if defn else None
-        raw = get_vault().decrypt(row.value) if row.secret else row.value
+        # An empty value is never encrypted (older versions flagged such rows secret anyway).
+        raw = get_vault().decrypt(row.value) if (row.secret and row.value) else row.value
         return _coerce(defn, raw)
 
     def set(self, key: str, value: Any) -> None:
@@ -121,13 +126,13 @@ class Settings:
             raw = "true" if value else "false"
         else:
             raw = "" if value is None else str(value)
-        stored = get_vault().encrypt(raw) if (secret and raw) else raw
+        encrypt = secret and raw != ""
         row = self.session.get(Setting, key)
         if row is None:
             row = Setting(key=key)
             self.session.add(row)
-        row.value = stored
-        row.secret = secret
+        row.value = get_vault().encrypt(raw) if encrypt else raw
+        row.secret = encrypt
 
     def followup_days(self) -> list[int]:
         out = []

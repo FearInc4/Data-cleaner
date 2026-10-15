@@ -11,6 +11,7 @@ import email
 import email.policy
 import html
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from email.message import EmailMessage
 from email.utils import getaddresses, parsedate_to_datetime
@@ -39,6 +40,9 @@ class IncomingMessage:
     headers: dict[str, str] = field(default_factory=dict)
     # Every header value in original order, keyed by lower-case name.
     raw_headers: dict[str, list[str]] = field(default_factory=dict)
+    # Who should have stamped the topmost Authentication-Results header (our mail
+    # provider's authserv-id). None: unknown, so that header proves nothing.
+    authserv: str | None = None
 
     @property
     def from_domain(self) -> str:
@@ -207,14 +211,18 @@ class Classification:
     evidence: str = ""
 
 
-def classify(msg: IncomingMessage) -> Classification:
+def classify(msg: IncomingMessage, ours: Iterable[str] = ()) -> Classification:
+    """Classify a reply. ``ours`` are the letters we sent on this request: wording quoted
+    from them ("...confirming that the request has been completed") is never evidence."""
     if msg.from_addr.startswith(_BOUNCE_SENDERS) or _BOUNCE_SUBJECTS.search(msg.subject) or "multipart/report" in msg.headers.get("Content-Type", ""):
         return Classification(ReplyKind.BOUNCE, msg.subject[:120])
-    body = f"{msg.subject}\n{_strip_quoted(msg.text)}"
+    ours_norm = _norm("\n".join(o for o in ours if o))
+    body = f"{msg.subject}\n{_strip_quoted(msg.text, ours_norm)}"
     for kind, patterns in _COMPILED:
         for pat in patterns:
-            m = pat.search(body)
-            if m:
+            for m in pat.finditer(body):
+                if ours_norm and _line_at(body, m) in ours_norm:
+                    continue  # our own words, re-wrapped or pasted without quote marks
                 return Classification(kind, _context(body, m))
     auto = msg.headers.get("Auto-Submitted", "").lower()
     if (auto and auto != "no") or _AUTO_REPLY_SUBJECT.search(msg.subject):
@@ -222,14 +230,45 @@ def classify(msg: IncomingMessage) -> Classification:
     return Classification(ReplyKind.UNKNOWN)
 
 
-def _strip_quoted(text: str) -> str:
-    """Drop our own quoted request so its wording ('delete', 'opt out') doesn't trigger rules."""
+_QUOTE_START = re.compile(
+    r"\s*(-{3,}\s*(Original (request|message)|Forwarded message)|_{10,}\s*$|On .{5,200} wrote:|Begin forwarded message:)", re.I)
+_ON_WROTE_START = re.compile(r"\s*On .{5,200}$", re.I)
+_HEADER_FROM = re.compile(r"\s*\*?(From|De|Von):\*?\s+\S", re.I)
+_HEADER_NEXT = re.compile(r"\s*\*?(Sent|Date|To|Subject|Cc|Envoy[ée]|Gesendet|Enviado):\*?(\s|$)", re.I)
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _line_at(text: str, m: re.Match[str]) -> str:
+    start = text.rfind("\n", 0, m.start()) + 1
+    end = text.find("\n", m.end())
+    return _norm(text[start:end if end >= 0 else len(text)])
+
+
+def _strip_quoted(text: str, ours_norm: str = "") -> str:
+    """Drop quoted mail (ours, mostly) so its wording ('delete', 'has been completed') doesn't trigger rules.
+
+    Handles '>' quoting, Gmail's "On ... wrote:", Outlook's From:/Sent: header block and
+    separator lines, and, given ``ours_norm``, lines copied verbatim from our letters.
+    """
+    lines = text.splitlines()
     out = []
-    for line in text.splitlines():
+    for i, line in enumerate(lines):
         if line.lstrip().startswith(">"):
             continue
-        if re.match(r"\s*(-{3,}\s*Original (request|message)|On .{5,80} wrote:)", line, re.I):
+        if _QUOTE_START.match(line):
             break
+        nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        if _ON_WROTE_START.match(line) and nxt.lower().endswith("wrote:"):
+            break  # "On <date>, <name> <\naddress> wrote:" wrapped over two lines
+        if _HEADER_FROM.match(line) and any(_HEADER_NEXT.match(n) for n in lines[i + 1:i + 5]):
+            break
+        if ours_norm:
+            n = _norm(line)
+            if len(n) >= 20 and n in ours_norm:
+                continue
         out.append(line)
     return "\n".join(out)
 

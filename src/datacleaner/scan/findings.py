@@ -25,8 +25,9 @@ def upsert_finding(
     if row is None:
         row = Finding(profile=profile, kind=kind, source=source, fingerprint=fp, first_seen=now)
         session.add(row)
-    elif row.status in (FindingStatus.REMOVED, FindingStatus.RESOLVED) and check_state in (None, "found"):
-        # It came back.
+    elif row.status == FindingStatus.REMOVED and check_state == "found":
+        # A listing we saw taken down is back. (A breach marked resolved stays resolved:
+        # providers report the same breach on every check.)
         row.status = FindingStatus.NEW
         created = True
     row.last_seen = now

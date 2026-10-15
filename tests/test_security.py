@@ -95,6 +95,16 @@ def test_log_filter_scrubs_exceptions(caplog):
     assert "jane.doe" not in records[0].getMessage()
 
 
+def test_access_log_lines_still_format():
+    from uvicorn.logging import AccessFormatter
+
+    record = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                               ("172.18.0.1:5000", "GET", "/auth/google/callback?code=4/0AY&state=abc", "1.1", 303), None)
+    assert logredact.RedactingFilter().filter(record)
+    line = AccessFormatter('%(client_addr)s - "%(request_line)s" %(status_code)s', use_colors=False).format(record)
+    assert "/auth/google/callback?code=[redacted]&state=[redacted]" in line and "4/0AY" not in line and "303" in line
+
+
 def test_aliases_round_trip_and_limits():
     a = make_alias("jane.doe@gmail.com", "spokeo", 3)
     assert a == "jane.doe+dc-spokeo-3@gmail.com" and parse_alias(a) == ("spokeo", 3)
@@ -199,3 +209,36 @@ def test_unsubscribe_body_is_ours(session, now):
     sender = session.scalars(select(MailingSender)).one()
     unsubscribe(session, sender, now=now)
     assert session.scalars(select(OutboxMessage)).one().body == "unsubscribe"
+
+
+def test_blank_secret_settings_round_trip(session):
+    from datacleaner.models import Setting
+    from datacleaner.settings import Settings
+
+    s = Settings(session)
+    s.set("smtp_password", "")
+    s.set("from_address", "")
+    assert s.get("smtp_password") == "" and s.get("from_address") == ""
+    # Rows written by earlier versions: flagged secret, stored as a plain "".
+    session.merge(Setting(key="imap_password", value="", secret=True))
+    assert s.get("imap_password") == ""
+
+
+def test_saving_blank_settings_keeps_the_app_working(client):
+    login(client)
+    blank = {k: "" for k in ("smtp_host", "smtp_username", "smtp_password", "from_address", "from_name",
+                             "imap_host", "imap_username", "imap_password", "notify_email", "alias_domain")}
+    r = client.post("/settings", data={"csrf": csrf(client, "/settings"), **blank}, follow_redirects=True)
+    assert r.status_code == 200 and "Settings saved" in r.text
+    assert client.get("/settings").status_code == 200 and client.get("/").status_code == 200
+
+
+def test_compose_uses_a_named_volume():
+    # A bind-mounted ./data is created root-owned on Linux, and the non-root container can't write it.
+    import pathlib
+
+    import yaml
+
+    compose = yaml.safe_load((pathlib.Path(__file__).parents[1] / "docker-compose.yml").read_text())
+    assert "datacleaner-data:/data" in compose["services"]["datacleaner"]["volumes"]
+    assert "datacleaner-data" in compose["volumes"]

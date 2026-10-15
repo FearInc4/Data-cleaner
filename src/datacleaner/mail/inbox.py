@@ -28,7 +28,7 @@ from .parse import (
     parse_message,
     verification_links,
 )
-from .trust import STRONG, recipients, sender_trust
+from .trust import STRONG, imap_authserv, recipients, sender_trust
 
 log = logging.getLogger(__name__)
 MAX_MESSAGE_BYTES = 10 * 1024 * 1024
@@ -41,16 +41,19 @@ class MailSource(Protocol):
 class ImapSource:
     """Fetch messages newer than the last UID we processed (tracked per UIDVALIDITY)."""
 
-    def __init__(self, host: str, port: int, username: str, password: str, folder: str = "INBOX", timeout: int = 30):
+    def __init__(self, host: str, port: int, username: str, password: str, folder: str = "INBOX", timeout: int = 30,
+                 authserv: str | None = None):
         self.host, self.port, self.username, self.password, self.folder = host, port, username, password, folder
         self.timeout = timeout
+        self.authserv = authserv if authserv is not None else imap_authserv(host)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "ImapSource | None":
         if not settings.imap_host or not settings.imap_username:
             return None
         return cls(settings.imap_host, int(settings.imap_port), settings.imap_username,
-                   settings.imap_password or "", settings.imap_folder or "INBOX")
+                   settings.imap_password or "", settings.imap_folder or "INBOX",
+                   authserv=imap_authserv(settings.imap_host, settings.imap_authserv_id))
 
     def connect(self) -> imaplib.IMAP4_SSL:
         conn = imaplib.IMAP4_SSL(self.host, self.port, ssl_context=ssl.create_default_context(), timeout=self.timeout)
@@ -87,9 +90,12 @@ class ImapSource:
                 if typ != "OK" or not msg_data or not isinstance(msg_data[0], tuple):
                     continue
                 try:
-                    out.append(parse_message(msg_data[0][1], uid=str(uid)))
+                    msg = parse_message(msg_data[0][1], uid=str(uid))
                 except Exception:  # one malformed message shouldn't stall the inbox
                     log.exception("Could not parse message UID %s", uid)
+                    continue
+                msg.authserv = self.authserv
+                out.append(msg)
             if uids:
                 settings.set("imap_last_uid", max(uids))
             return out
@@ -144,12 +150,18 @@ def match_request(session: Session, msg: IncomingMessage, bounce: bool = False) 
     if bounce or not ids:
         ids += MSGID_RE.findall(msg.text)
     if ids:
-        ev = session.scalars(select(RequestEvent).where(RequestEvent.message_id.in_(ids))).first()
+        ev = session.scalars(select(RequestEvent).where(RequestEvent.message_id.in_(ids),
+                                                        RequestEvent.direction == "out")).first()
         if ev:
             return ev.request, "thread"
         out = session.scalars(select(OutboxMessage).where(OutboxMessage.message_id.in_(ids))).first()
         if out and out.request_id:
             return session.get(RemovalRequest, out.request_id), "thread"
+        # A reply to a message we *received*: same conversation, but anyone could have
+        # sent that message, so this proves nothing about the sender.
+        ev = session.scalars(select(RequestEvent).where(RequestEvent.message_id.in_(ids))).first()
+        if ev:
+            return ev.request, "chain"
     # 2. Our private reference token in subject/body.
     ref = find_reference(msg)
     if ref:
@@ -191,6 +203,10 @@ def default_clicker(url: str) -> int:
 
 def _our_message_ids(req: RemovalRequest) -> set[str]:
     return {e.message_id for e in req.events if e.direction == "out" and e.message_id}
+
+
+def _our_bodies(req: RemovalRequest) -> list[str]:
+    return [e.body for e in req.events if e.direction == "out" and e.body]
 
 
 def _flag_for_review(session: Session, req: RemovalRequest, summary: str, *, now: datetime) -> None:
@@ -296,8 +312,18 @@ def process_inbox(session: Session, source: MailSource | None, *, now: datetime,
         source = get_source(session)
         if source is None:
             return stats
+    from .oauth_mail import MailAuthError
+
     own = (sender_address(session) or "").lower()
-    for msg in source.fetch_new(session):
+    try:
+        messages = list(source.fetch_new(session))
+    except MailAuthError as exc:
+        # The account was flagged "needs reconnect"; return normally so that sticks
+        # (raising would roll it back, and replies would silently stop being read).
+        log.warning("Mailbox needs reconnecting: %s", exc)
+        stats["needs_reconnect"] = 1
+        return stats
+    for msg in messages:
         stats["fetched"] += 1
         if msg.message_id and session.scalars(
             select(RequestEvent).where(RequestEvent.message_id == msg.message_id, RequestEvent.direction == "in")
@@ -310,6 +336,8 @@ def process_inbox(session: Session, source: MailSource | None, *, now: datetime,
         # Ignore copies of our own outgoing messages (e.g. Gmail shows sent mail in All Mail).
         if own and msg.from_addr == own and cls.kind != ReplyKind.BOUNCE:
             continue
+        if cls.kind != ReplyKind.BOUNCE:
+            cls = classify(msg, ours=_our_bodies(req))
         trust = "thread" if how == "thread" else sender_trust(msg, req, our_message_ids=_our_message_ids(req))
         stats["matched"] += 1
         outcome = apply_reply(session, req, msg, cls, now=now, clicker=clicker, trust=trust, matched_by=how)

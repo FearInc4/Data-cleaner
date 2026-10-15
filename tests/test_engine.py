@@ -1,8 +1,11 @@
+import smtplib
 from datetime import timedelta
 
+import httpx
+import pytest
 from sqlalchemy import select
 
-from datacleaner.mail.smtp import drain_outbox
+from datacleaner.mail.smtp import MAX_ATTEMPTS, drain_outbox
 from datacleaner.models import Broker, OutboxMessage, RemovalRequest, RequestStatus
 from datacleaner.removal import engine
 from datacleaner.removal.engine import Step, cadence
@@ -156,15 +159,164 @@ def test_auto_approve_and_rate_limit(session, profile, now):
     assert drain_outbox(session, mailer, now=now + timedelta(minutes=61))["sent"] == 1
 
 
-def test_send_failures_retry_then_flag(session, profile, now):
+class RaisingMailer:
+    def __init__(self, exc):
+        self.exc, self.calls = exc, 0
+
+    def send(self, message):
+        self.calls += 1
+        raise self.exc
+
+
+def test_send_failures_back_off_then_flag(session, profile, now):
     _configure(session)
     req, _ = engine.create_request(session, profile, _broker(session), now=now)
     engine.approve(session, req, now=now)
-    bad = FakeMailer(fail=True)
-    for i in range(4):
-        assert drain_outbox(session, bad, now=now + timedelta(minutes=i))["failed"] == 0
-    assert drain_outbox(session, bad, now=now + timedelta(minutes=5))["failed"] == 1
+    bad = RaisingMailer(OSError("connection refused"))
+    assert drain_outbox(session, bad, now=now)["failed"] == 0
+    # Retrying on every 5-minute tick would use up every attempt within half an hour.
+    for minutes in range(1, 5):
+        drain_outbox(session, bad, now=now + timedelta(minutes=minutes))
+    assert bad.calls == 1
+    msg = session.scalars(select(OutboxMessage)).one()
+    for _ in range(MAX_ATTEMPTS - 2):
+        t = msg.next_attempt_at
+        assert drain_outbox(session, bad, now=t)["failed"] == 0
+    assert req.status == RequestStatus.QUEUED and t - now > timedelta(days=1)
+    assert drain_outbox(session, bad, now=msg.next_attempt_at)["failed"] == 1
+    assert bad.calls == MAX_ATTEMPTS and req.status == RequestStatus.NEEDS_USER_ACTION
+
+
+def test_short_outage_recovers(session, profile, now):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    engine.approve(session, req, now=now)
+    drain_outbox(session, RaisingMailer(OSError("network unreachable")), now=now)
+    ok = FakeMailer()
+    assert drain_outbox(session, ok, now=now + timedelta(minutes=5))["sent"] == 1
+    assert req.status == RequestStatus.SENT
+
+
+@pytest.mark.parametrize("exc", [
+    smtplib.SMTPRecipientsRefused({"privacy@mylife.com": (550, b"no such user")}),
+    smtplib.SMTPDataError(554, b"message rejected"),
+    httpx.HTTPStatusError("bad request", request=httpx.Request("POST", "https://gmail.example"), response=httpx.Response(400)),
+])
+def test_permanent_send_errors_fail_at_once(session, profile, now, exc):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    engine.approve(session, req, now=now)
+    assert drain_outbox(session, RaisingMailer(exc), now=now)["failed"] == 1
     assert req.status == RequestStatus.NEEDS_USER_ACTION
+
+
+def test_bad_smtp_password_keeps_mail_queued(session, profile, now):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    engine.approve(session, req, now=now)
+    stats = drain_outbox(session, RaisingMailer(smtplib.SMTPAuthenticationError(535, b"bad credentials")), now=now)
+    assert stats["deferred"] == 1 and stats["failed"] == 0
+    msg = session.scalars(select(OutboxMessage)).one()
+    assert msg.status == "queued" and msg.attempts == 0 and req.status == RequestStatus.QUEUED
+
+
+def _sent(session, profile, now, mailer=None):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    engine.approve(session, req, now=now)
+    drain_outbox(session, mailer or FakeMailer(), now=now)
+    return req
+
+
+def test_cancel_withdraws_queued_mail(session, profile, now):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    engine.approve(session, req, now=now)
+    engine.set_status(session, req, RequestStatus.CANCELLED, now=now, summary="Cancelled")
+    mailer = FakeMailer()
+    drain_outbox(session, mailer, now=now)
+    assert mailer.sent == [] and req.status == RequestStatus.CANCELLED and req.next_action_at is None
+    assert session.scalars(select(OutboxMessage)).one().status == "cancelled"
+
+
+def test_completed_request_with_queued_followup_stays_completed(session, profile, now):
+    req = _sent(session, profile, now)
+    later = now + timedelta(days=10)
+    assert engine.process_due(session, now=later)["followup"] == 1
+    engine.mark_completed(session, req, now=later, summary="Broker confirmed")
+    mailer = FakeMailer()
+    drain_outbox(session, mailer, now=later)
+    assert mailer.sent == [] and req.status == RequestStatus.COMPLETED and req.next_action_at is None
+
+
+def test_mail_sent_after_completion_does_not_reopen(session, profile, now):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    msg = engine.approve(session, req, now=now)
+    req.status = RequestStatus.COMPLETED  # changed while the message was being handed to the provider
+    engine.on_message_sent(session, msg, now=now)
+    assert req.status == RequestStatus.COMPLETED and req.next_action_at is None
+
+
+def test_resume_without_any_send_goes_back_to_draft(session, profile, now):
+    _configure(session)
+    req, _ = engine.create_request(session, profile, _broker(session), now=now)
+    engine.approve(session, req, now=now)
+    drain_outbox(session, RaisingMailer(smtplib.SMTPRecipientsRefused({"x": (550, b"no")})), now=now)
+    assert req.status == RequestStatus.NEEDS_USER_ACTION and req.first_sent_at is None
+    engine.resume(session, req, now=now)
+    assert req.status == RequestStatus.DRAFT and req.next_action_at is None
+
+    # Same for a re-send that failed, even though an earlier attempt did go out.
+    engine.approve(session, req, now=now)
+    drain_outbox(session, FakeMailer(), now=now)
+    engine.set_status(session, req, RequestStatus.REJECTED, now=now, summary="declined")
+    engine.approve(session, req, now=now + timedelta(days=5))
+    drain_outbox(session, RaisingMailer(smtplib.SMTPRecipientsRefused({"x": (550, b"no")})), now=now + timedelta(days=5))
+    engine.resume(session, req, now=now + timedelta(days=5))
+    assert req.status == RequestStatus.DRAFT and req.next_action_at is None
+
+    form, _ = engine.create_request(session, profile, _broker(session, "fastpeoplesearch"), now=now)
+    form.status = RequestStatus.NEEDS_USER_ACTION
+    engine.resume(session, form, now=now)
+    assert form.status == RequestStatus.AWAITING_USER
+
+
+def test_overdue_steps_after_downtime_dont_burst(session, profile, now):
+    req = _sent(session, profile, now)
+    back = now + timedelta(days=50)  # down through both reminders and the 45-day deadline
+    assert engine.process_due(session, now=back) == {"followup": 0, "final_notice": 1, "escalate": 0, "user_action": 0}
+    drain_outbox(session, FakeMailer(), now=back)
+    for minutes in (5, 10, 15):
+        assert sum(engine.process_due(session, now=back + timedelta(minutes=minutes)).values()) == 0
+    # The final notice promised 7 days before a complaint is drafted.
+    assert req.next_action_at == back + timedelta(days=7)
+    assert engine.process_due(session, now=back + timedelta(days=7))["escalate"] == 1
+
+
+def test_resend_after_rejection_gets_fresh_followups(session, profile, now):
+    mailer = FakeMailer()
+    req = _sent(session, profile, now, mailer)
+    for days in (10, 25):
+        engine.process_due(session, now=now + timedelta(days=days))
+        drain_outbox(session, mailer, now=now + timedelta(days=days))
+    assert req.followup_count == 2
+    engine.set_status(session, req, RequestStatus.REJECTED, now=now + timedelta(days=30), summary="declined")
+    again = now + timedelta(days=60)
+    engine.approve(session, req, now=again)
+    drain_outbox(session, mailer, now=again)
+    assert req.status == RequestStatus.SENT and req.followup_count == 0
+    assert req.due_at == again + timedelta(days=45) and req.next_action_at == again + timedelta(days=10)
+
+
+def test_resubmitted_form_restarts_schedule(session, profile, now):
+    req, _ = engine.create_request(session, profile, _broker(session, "fastpeoplesearch"), now=now)
+    engine.mark_submitted(session, req, now=now)
+    engine.process_due(session, now=now + timedelta(days=10))
+    assert req.status == RequestStatus.NEEDS_USER_ACTION
+    later = now + timedelta(days=30)
+    engine.mark_submitted(session, req, now=later, note="Resubmitted the form")
+    assert req.first_sent_at == later and req.next_action_at == later + timedelta(days=10)
 
 
 def test_unconfigured_mail_defers(session, profile, now):

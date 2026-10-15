@@ -18,7 +18,7 @@ _SessionLocal: sessionmaker[Session] | None = None
 
 def init_engine(url: str) -> Engine:
     global _engine, _SessionLocal
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    connect_args = {"check_same_thread": False, "timeout": 30} if url.startswith("sqlite") else {}
     engine = create_engine(url, connect_args=connect_args, future=True)
     if url.startswith("sqlite"):
 

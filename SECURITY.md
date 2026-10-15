@@ -11,7 +11,7 @@ Please **don't open a public issue**. Use GitHub's private vulnerability reporti
 | Threat | Mitigation |
 |---|---|
 | Stolen or leaked database file (backup, sync folder, lost disk) | PII, email bodies, OAuth tokens and secrets are encrypted with Fernet (AES-128-CBC + HMAC-SHA256). Set `DATACLEANER_SECRET_KEY` to keep the key out of the data directory. Files are created owner-only (umask 077). |
-| Someone else claiming a fresh install | The first account can only be created with a one-time setup token. It's printed to the server console and stored in `data/setup-token`, and deleted once used. |
+| Someone else claiming a fresh install | The first account can only be created with a one-time setup token. It's printed to the server console and stored as `setup-token` in the data directory, and deleted once used. |
 | Password guessing | scrypt hashes, a 12-character minimum, 5 failures per 15 minutes per username and IP, and constant-time behaviour for unknown usernames. Google/Microsoft sign-in inherits their 2-step verification. |
 | Account takeover through a look-alike Google/Microsoft account ("nOAuth") | Accounts are matched on the provider's stable subject id (Google `sub`, Microsoft `tid`+`oid`), never on the email claim. Only identities linked by the owner can sign in. |
 | OAuth code interception, login CSRF, token replay | Authorization-code flow with PKCE (S256), `state` bound to the session, a `nonce` checked in the ID token, and an ID token signature verified against the provider's JWKS with `iss`/`aud`/`exp` checks. |
@@ -19,7 +19,7 @@ Please **don't open a public issue**. Use GitHub's private vulnerability reporti
 | CSRF, clickjacking, XSS | CSRF tokens on every POST. `frame-ancestors 'none'`. Strict CSP (no inline script or style). Autoescaped templates. Links from untrusted sources pass through a `safe_url` filter that only allows http(s). |
 | DNS rebinding against a local install | The Host header is checked against localhost, `DATACLEANER_BASE_URL` and `DATACLEANER_ALLOWED_HOSTS`. |
 | SSRF via links in emails, search results or imported registries | Verification links are only opened if they're on the broker's own domain. Every untrusted fetch goes through a client that refuses private, loopback, link-local, metadata and non-https targets at every redirect hop. |
-| Spoofed broker replies ("your data was deleted") | A reply only changes a request if it quotes our unguessable Message-ID or request reference, or if our mail provider's topmost `Authentication-Results` shows DMARC/aligned-DKIM passing for the broker's domain. Anything else is flagged for the person to review, and follow-ups continue. |
+| Spoofed broker replies ("your data was deleted") | A reply only changes a request if it quotes one of *our* unguessable Message-IDs or our request reference (replying to an email we received proves nothing), or if the topmost `Authentication-Results` carries our own mail provider's authserv-id and shows DMARC/aligned-DKIM passing for the broker's domain. Text quoted from our own letters is never read as the broker's answer. Anything else is flagged for the person to review, and follow-ups continue. |
 | Spammers abusing the unsubscribe helper | One-click unsubscribe only goes to public https hosts. A `mailto:` unsubscribe always sends our own fixed body to a single recipient; the sender can't choose what is sent from your account. |
 | Personal data in logs | A log filter redacts emails, phone numbers, OAuth codes, tokens and API keys from application and access logs, including tracebacks. |
 | Browser and proxy caching | `Cache-Control: no-store` on every page. |
@@ -32,7 +32,7 @@ Please **don't open a public issue**. Use GitHub's private vulnerability reporti
 
 - **Anyone with shell access to the running host can read the data.** Encryption at rest protects copies of the files, not a compromised server. Keep the host patched and its access limited.
 - **DNS rebinding between our check and the connection** is theoretically possible for untrusted fetches. The remaining impact is a blind GET/POST without cookies or credentials.
-- **Mailboxes connected over IMAP** at providers that don't add their own `Authentication-Results` header get weaker sender verification. Gmail, Outlook and Fastmail add one.
+- **Mailboxes connected over IMAP** at providers other than Gmail, Outlook and Fastmail only trust `Authentication-Results` if you enter your provider's authserv-id on the Settings page. Without it, replies count only when they quote our request; everything else goes to you for review.
 - **Debian base-image CVEs without an upstream fix** are reported but can't be patched by us. None of the affected packages (util-linux, ncurses, systemd libs and similar) are used by the app at runtime. A distroless or Wolfi base image is on the roadmap.
 - **Google OAuth apps left in "Testing"** must be reconnected every 7 days. Publishing your own private app avoids this.
 - **Single owner per install.** Household members are managed as authorized-agent profiles. True multi-user mode needs per-user encryption keys and is on the roadmap.
@@ -40,7 +40,7 @@ Please **don't open a public issue**. Use GitHub's private vulnerability reporti
 ## Self-hosting checklist
 
 1. Keep `docker compose` binding to `127.0.0.1` (the default). Reach the app remotely through Tailscale or a reverse proxy with HTTPS, and set `DATACLEANER_BASE_URL=https://…`.
-2. Set `DATACLEANER_SECRET_KEY` in `.env`, and store a copy somewhere other than your backups of `./data`.
+2. Set `DATACLEANER_SECRET_KEY` in `.env`, and store a copy somewhere other than your backups of the data volume.
 3. Prefer "Sign in with Google/Microsoft", or use a long passphrase.
 4. Use a dedicated mailbox or alias for removal requests if you can.
 5. Update regularly: `git pull && docker compose build --pull && docker compose up -d`.

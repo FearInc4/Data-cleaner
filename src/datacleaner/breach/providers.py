@@ -249,10 +249,10 @@ def identifiers_for(profile: Profile) -> list[tuple[str, str]]:
 def run_breach_check(session: Session, profile: Profile, providers: list[Provider], *, now: datetime | None = None,
                      delay: float = 1.1) -> ScanRun:
     now = now or utcnow()
-    run = ScanRun(profile=profile, kind="breach", started_at=now)
-    session.add(run)
+    session.commit()  # don't hold a write lock during network calls
     errors: list[str] = []
     found = new = 0
+    collected: list[Exposure] = []
     for provider in providers:
         for ident, kind in identifiers_for(profile):
             if kind not in provider.supports:
@@ -266,17 +266,19 @@ def run_breach_check(session: Session, profile: Profile, providers: list[Provide
             finally:
                 if delay:
                     time.sleep(delay)
-            for ex in exposures:
-                _, created = upsert_finding(
-                    session, profile, kind=KIND_MAP[ex.kind], source=ex.source, key=f"{ex.identifier}|{ex.name}",
-                    now=now, url=ex.url, title=ex.name, snippet=f"Matched {ex.identifier}" + (f". {ex.description}" if ex.description else ""),
-                    data_classes=ex.data_classes, occurred_on=ex.date, score=1.0,
-                )
-                found += 1
-                new += int(created)
-    run.finished_at = utcnow()
-    run.status = "done" if not errors or found else ("error" if errors else "done")
-    run.summary = {"providers": [p.name for p in providers], "exposures": found, "new": new, "errors": errors[:10]}
+            collected.extend(exposures)
+    for ex in collected:
+        _, created = upsert_finding(
+            session, profile, kind=KIND_MAP[ex.kind], source=ex.source, key=f"{ex.identifier}|{ex.name}",
+            now=now, url=ex.url, title=ex.name, snippet=f"Matched {ex.identifier}" + (f". {ex.description}" if ex.description else ""),
+            data_classes=ex.data_classes, occurred_on=ex.date, score=1.0,
+        )
+        found += 1
+        new += int(created)
+    run = ScanRun(profile=profile, kind="breach", started_at=now, finished_at=utcnow(),
+                  status="error" if errors and not found else "done",
+                  summary={"providers": [p.name for p in providers], "exposures": found, "new": new, "errors": errors[:10]})
+    session.add(run)
     return run
 
 
