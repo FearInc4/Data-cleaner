@@ -228,7 +228,7 @@ crashing. **First task for v0.2: run each integration once against the real serv
 - [ ] Multi-user mode (accounts, per-user keys, email verification of profile owners)
 - [ ] Broker catalog as its own repo with CI that checks opt-out URLs weekly and flags dead ones
 - [ ] Shared, anonymous "broker response stats" (opt-in): how fast each broker responds, which methods work
-- [ ] Browser extension for one-click form fill on any broker page (an alternative to Playwright)
+- [x] Browser extension for one-click form fill on any broker page (an alternative to Playwright)
 - [ ] Desktop packaging (Tauri) for non-technical users
 - [ ] Translations of templates and UI (EU languages, French for Quebec)
 - [ ] Lawyer review of all templates
@@ -240,7 +240,7 @@ crashing. **First task for v0.2: run each integration once against the real serv
 Highest impact first:
 
 1. **Run every integration against the real services once** (Gmail, Graph, XposedOrNot, LeakCheck, FTC, broker search pages) and fix any response-shape surprises. The test suite fakes them all.
-2. **Browser extension for form filling.** Most people-search opt-outs are web forms. A small WebExtension that reads the "details to paste" for the current request and fills the broker's form would make the biggest single dent in user effort, and it works from any web-based install (the Playwright helper only works on a desktop).
+2. ~~**Browser extension for form filling.**~~ Done: `src/datacleaner/extension/` (Manifest V3, Chrome and Firefox), paired per browser with revocable codes. Next: publish it on the Chrome Web Store and addons.mozilla.org so people don't need Developer mode, and fill forms inside iframes (OneTrust-style portals).
 3. **One-click installers:** a Raspberry Pi / NAS image (Umbrel, CasaOS, Unraid, TrueNAS apps), and a desktop bundle (Tauri) that runs locally with no Docker. Non-technical people won't run `docker compose`.
 4. **Encrypted backup and restore** (passphrase-protected export) and an upgrade path with Alembic.
 5. **Distroless or Wolfi base image** to remove the Debian packages that carry unfixed CVEs.

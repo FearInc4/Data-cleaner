@@ -2,27 +2,71 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ... import app_state, oauth
+from ...app_state import get_config
 from ...brokers import sync_catalog
 from ...db import Base
-from ...models import MailAccount, OAuthIdentity, User
+from ...models import ExtensionToken, MailAccount, OAuthIdentity, User
 from ...security import hash_password, verify_password
 from ...settings import Settings
 from ..deps import current_user, flash, get_db, redirect, render, start_session
 from .auth import oauth_options
+from .extension import pair_browser
 
 router = APIRouter(prefix="/account")
+EXTENSION_DIR = Path(__file__).resolve().parents[2] / "extension"
+
+
+def _account(request: Request, db: Session, user: User, **extra):
+    accounts = db.scalars(select(MailAccount).order_by(MailAccount.id)).all()
+    browsers = db.scalars(select(ExtensionToken).where(ExtensionToken.user_id == user.id, ExtensionToken.session_version == user.session_version)
+                          .order_by(ExtensionToken.created_at)).all()
+    cfg = get_config()
+    base_url = (cfg.base_url or str(request.base_url)).rstrip("/")
+    return render(request, db, "account.html", user=user, identities=user.identities, accounts=accounts,
+                  providers=oauth_options(db), all_providers=oauth.PROVIDERS, browsers=browsers, base_url=base_url, **extra)
 
 
 @router.get("")
 def account_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    accounts = db.scalars(select(MailAccount).order_by(MailAccount.id)).all()
-    return render(request, db, "account.html", user=user, identities=user.identities, accounts=accounts,
-                  providers=oauth_options(db), all_providers=oauth.PROVIDERS)
+    return _account(request, db, user)
+
+
+@router.post("/extension/pair")
+def extension_pair(request: Request, name: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    token = pair_browser(db, user, name)
+    db.flush()
+    # Shown once, in this response only: not stored, not put in a redirect or flash message.
+    return _account(request, db, user, new_token=token)
+
+
+@router.post("/extension/{token_id}/revoke")
+def extension_revoke(token_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    row = db.get(ExtensionToken, token_id)
+    if row and row.user_id == user.id:
+        db.delete(row)
+        flash(request, f"Unpaired {row.name}. That browser can't fetch your details any more.", "success")
+    return redirect("/account#extension")
+
+
+@router.get("/extension.zip")
+def extension_zip(user: User = Depends(current_user)):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted(EXTENSION_DIR.rglob("*")):
+            if path.is_file() and "__pycache__" not in path.parts:
+                zf.write(path, Path("datacleaner-extension") / path.relative_to(EXTENSION_DIR))
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="datacleaner-extension.zip"'})
 
 
 @router.post("/password")

@@ -2,9 +2,9 @@
 #
 #   docker compose up -d
 #   docker compose logs datacleaner     # shows your one-time setup link
-#   open http://localhost:8080
+#   open http://localhost:25326
 #
-# Only port 8080 on localhost is exposed. For access from other devices, use
+# Only port 25326 on localhost is exposed. For access from other devices, use
 # Tailscale or a reverse proxy with HTTPS and set DATACLEANER_BASE_URL.
 x-hardening: &hardening
   read_only: true
@@ -21,14 +21,16 @@ services:
     cap_drop:
       - ALL
     ports:
-      - "127.0.0.1:8080:8080"
+      # 25326 spells CLEAN on a phone keypad. To use another port, set DATACLEANER_PORT in .env.
+      - "127.0.0.1:${DATACLEANER_PORT:-25326}:${DATACLEANER_PORT:-25326}"
     volumes:
       # A named volume (not ./data) so the non-root container owns it on every OS.
       - datacleaner-data:/data
     environment:
+      DATACLEANER_PORT: ${DATACLEANER_PORT:-25326}
       DATACLEANER_SEARXNG_URL: http://searxng:8080
       # The address you open in your browser. Needed for Google/Microsoft sign-in
-      # when it isn't http://localhost:8080 (https:// also turns on secure cookies + HSTS).
+      # when it isn't http://localhost:25326 (https:// also turns on secure cookies + HSTS).
       DATACLEANER_BASE_URL: ${DATACLEANER_BASE_URL:-}
       # Keep the encryption key outside the data volume so a copied backup alone can't be decrypted.
       DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY:-}

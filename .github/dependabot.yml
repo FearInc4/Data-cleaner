@@ -1,9 +1,14 @@
 version: 2
 updates:
+  # The app installs from the hash-pinned requirements.lock (regenerate it with the
+  # command in its header). Raising the minimums in pyproject.toml on their own only
+  # breaks CI's lock check, so pip updates are lockfile-only. pip-audit in CI flags
+  # any locked version with a known vulnerability.
   - package-ecosystem: pip
     directory: "/"
     schedule:
       interval: weekly
+    versioning-strategy: lockfile-only
     groups:
       python:
         patterns: ["*"]
@@ -11,6 +16,11 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      # Keep digest updates (security fixes) for python:3.12-slim. A new Python
+      # version needs a regenerated lock file and testing, so it's done by hand.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

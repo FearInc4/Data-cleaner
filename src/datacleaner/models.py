@@ -110,6 +110,26 @@ class Relation:
     AGENT = "agent"  # authorized agent acting for a family member / client
 
 
+class ExtensionToken(Base):
+    """A browser paired with this install (the Data Cleaner extension).
+
+    Only a hash of the token is stored. A token stops working when the owner signs
+    out everywhere or changes password (``session_version``), or after 60 days unused.
+    """
+
+    __tablename__ = "extension_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(80))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    session_version: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped[User] = relationship()
+
+
 class Profile(Base):
     """A person whose data we are cleaning up. PII is one encrypted JSON blob.
 

@@ -15,6 +15,7 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # OAuth codes, state, tokens, API keys in query strings or form bodies
     (re.compile(r"(?i)\b(code|state|token|access_token|refresh_token|id_token|api_key|key|password|client_secret)=([^&\s\"']+)"), r"\1=[redacted]"),
     (re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]+"), r"\1 [redacted]"),
+    (re.compile(r"\bdcx_[A-Za-z0-9_-]{16,}"), "dcx_[redacted]"),  # browser-extension pairing codes
     (re.compile(r"(?i)(hibp-api-key|x-subscription-token|authorization)[\"']?\s*[:=]\s*[\"']?[^\s\"',}]+"), r"\1: [redacted]"),
     # Email addresses (also URL-encoded @)
     (re.compile(r"[A-Za-z0-9._%+'-]+(@|%40)[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[email]"),

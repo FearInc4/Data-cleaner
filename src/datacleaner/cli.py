@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="datacleaner", description="Find and remove your personal data from the internet.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("serve", help="run the web app (default http://127.0.0.1:8080)")
+    p = sub.add_parser("serve", help="run the web app (default http://127.0.0.1:25326)")
     p.add_argument("--host")
     p.add_argument("--port", type=int)
     p.add_argument("--no-scheduler", action="store_true", help="don't run the background scheduler in-process")

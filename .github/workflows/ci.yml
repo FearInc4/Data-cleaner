@@ -26,6 +26,24 @@ jobs:
       - run: datacleaner check-catalog
       - run: pytest
 
+  extension:
+    # The browser extension, loaded into real Chromium against a live server.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,browser]"
+      - run: python -m playwright install --with-deps chromium
+      - name: Extension end-to-end test (must run, not skip)
+        run: |
+          set -o pipefail
+          pytest tests/test_extension_e2e.py -rs | tee e2e.log
+          ! grep -q "skipped" e2e.log
+
   security:
     runs-on: ubuntu-latest
     steps:
@@ -45,6 +63,9 @@ jobs:
       - name: Lock file matches pyproject.toml
         run: |
           pip install uv
+          # Start from the current lock so uv keeps its pins: this fails when pyproject.toml
+          # changed without regenerating the lock, not whenever a dependency publishes a release.
+          cp requirements.lock /tmp/requirements.lock
           uv pip compile -q pyproject.toml --python-version 3.12 --generate-hashes -o /tmp/requirements.lock
           diff <(grep -E '^[a-z0-9].*==' requirements.lock) <(grep -E '^[a-z0-9].*==' /tmp/requirements.lock) \
             || (echo "requirements.lock is stale: run the command at the top of the file" && exit 1)
@@ -59,8 +80,8 @@ jobs:
       - name: Image starts read-only, unprivileged, and becomes healthy
         run: |
           docker run -d --name dc --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
-            -p 127.0.0.1:8080:8080 datacleaner:ci
-          for i in $(seq 1 30); do curl -sf http://localhost:8080/healthz && exit 0; sleep 1; done
+            -p 127.0.0.1:25326:25326 datacleaner:ci
+          for i in $(seq 1 30); do curl -sf http://localhost:25326/healthz && exit 0; sleep 1; done
           docker logs dc; exit 1
       - name: Scan image for fixable HIGH/CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0

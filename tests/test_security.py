@@ -123,7 +123,7 @@ def test_aliases_round_trip_and_limits():
 def test_unknown_host_rejected(client):
     r = client.get("/setup", headers={"Host": "attacker.example"})
     assert r.status_code == 400 and "Unknown host" in r.text
-    assert client.get("/healthz", headers={"Host": "localhost:8080"}).status_code == 200
+    assert client.get("/healthz", headers={"Host": "localhost:25326"}).status_code == 200
 
 
 def test_security_headers_and_no_store(client):

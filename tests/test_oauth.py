@@ -9,7 +9,7 @@ from .fake_idp import FakeIdP
 
 NOW = datetime(2026, 3, 2, 12, 0)
 CREDS = oauth.ClientCreds("client-123", "secret")
-BASE = "http://localhost:8080"
+BASE = "http://localhost:25326"
 
 
 @pytest.fixture()
@@ -36,7 +36,7 @@ def test_authorize_url_has_pkce_state_nonce(idp):
     assert "code_challenge_method=S256" in url and "access_type=offline" in url and "prompt=consent" in url
     assert "gmail.send" in url and "gmail.readonly" in url
     assert store["oauth"]["state"] in url and store["oauth"]["verifier"] not in url
-    assert "redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fauth%2Fgoogle%2Fcallback" in url
+    assert "redirect_uri=http%3A%2F%2Flocalhost%3A25326%2Fauth%2Fgoogle%2Fcallback" in url
 
 
 @pytest.mark.parametrize("provider,subject,email", [

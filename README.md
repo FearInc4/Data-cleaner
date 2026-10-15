@@ -29,7 +29,7 @@ cp .env.example .env   # optional: set DATACLEANER_SECRET_KEY and SEARXNG_SECRET
 docker compose up -d
 ```
 
-Then run `docker compose logs datacleaner` and open the **setup link** it prints (`http://localhost:8080/setup?token=…`). The one-time token makes sure nobody else can claim your install. A short guided setup takes it from there: connect your email, add your details, pick brokers, send.
+Then run `docker compose logs datacleaner` and open the **setup link** it prints (`http://localhost:25326/setup?token=…`). Port 25326 spells CLEAN on a phone keypad and was picked because other apps don't use it; set `DATACLEANER_PORT` in `.env` to change it. The one-time token makes sure nobody else can claim your install. A short guided setup takes it from there: connect your email, add your details, pick brokers, send.
 
 This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network. Everything is stored in the `datacleaner-data` Docker volume.
 
@@ -44,11 +44,21 @@ datacleaner serve           # prints your setup link
 
 For web search without Docker, run your own SearXNG or add a Brave Search API key in Settings.
 
-**Assisted form filling (optional, desktop only).** Data Cleaner can open a broker's opt-out form in a real browser window, pre-filled with your details. You check it, solve the CAPTCHA, and submit.
+**Assisted form filling (optional, desktop only).** Data Cleaner can open a broker's opt-out form in a real browser window, pre-filled with your details. You check it, solve the CAPTCHA, and submit. The [browser extension](#browser-extension) does the same in your everyday browser and also works with Docker or a remote install.
 
 ```bash
 pip install -e ".[browser]" && playwright install chromium
 ```
+
+### Browser extension
+
+Most opt-outs are web forms. The Data Cleaner extension fills them for you in Chrome, Edge, Brave or Firefox: open the broker's form, click the extension, choose **Fill the form**, check the details, solve any CAPTCHA and press Submit. Then choose **I submitted it**, and Data Cleaner schedules the follow-ups.
+
+1. In Data Cleaner, open **Account & security → Browser extension** and download the extension. Unzip it.
+2. **Chrome / Edge / Brave:** go to `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked** and pick the unzipped folder. **Firefox:** go to `about:debugging#/runtime/this-firefox` and choose **Load Temporary Add-on** (Firefox removes temporary add-ons when it restarts until the extension is published on addons.mozilla.org).
+3. Create a pairing code on the same page, open the extension, and enter your Data Cleaner address and the code.
+
+The extension only fills forms on the broker's own website, over HTTPS. It fetches your details for one form at a time and never stores them, and it can't see anything else in Data Cleaner. Unpair a browser any time on the Account page.
 
 ---
 
@@ -59,13 +69,13 @@ Each install uses **its own** OAuth app, so your mailbox access belongs to you. 
 **Google (Gmail / Google Workspace)**
 1. In [Google Cloud Console](https://console.cloud.google.com/projectcreate), create a project and enable the **Gmail API**.
 2. Go to **Google Auth Platform**. Under Branding, set an app name and your email. Under Audience, choose External and add yourself as a test user. Under Data Access, add the scopes `gmail.send` and `gmail.readonly`.
-3. Under **Clients**, create a **Web application** client with the redirect URI `http://localhost:8080/auth/google/callback` (or your `DATACLEANER_BASE_URL` + `/auth/google/callback`).
+3. Under **Clients**, create a **Web application** client with the redirect URI `http://localhost:25326/auth/google/callback` (or your `DATACLEANER_BASE_URL` + `/auth/google/callback`).
 4. Paste the client ID and secret on the setup page or in Settings, or set `DATACLEANER_GOOGLE_CLIENT_ID` / `_SECRET` in `.env`.
 5. Recommended: **Publish** the app. Apps left in "Testing" must be reconnected every 7 days. You'll see an "unverified app" notice when connecting, which is normal for a private app you made yourself.
 
 **Microsoft (Outlook.com, Hotmail, Microsoft 365)**
 1. Under [App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade), choose New registration, with account type **"any organizational directory and personal Microsoft accounts"**.
-2. Add a **Web** redirect URI: `http://localhost:8080/auth/microsoft/callback`.
+2. Add a **Web** redirect URI: `http://localhost:25326/auth/microsoft/callback`.
 3. Under Certificates & secrets, create a client secret and copy its **Value**.
 4. Under API permissions → Microsoft Graph (Delegated), add `Mail.Send`, `Mail.Read`, `User.Read` and `offline_access`.
 5. Paste the Application (client) ID and secret, or set `DATACLEANER_MICROSOFT_CLIENT_ID` / `_SECRET`.
@@ -77,7 +87,7 @@ Prefer not to? Any provider still works over SMTP/IMAP with an app password (**S
 With Gmail, Outlook, iCloud, Fastmail, Proton and most custom domains, the part after a `+` is delivered to you as normal. Data Cleaner gives every broker its own:
 
 - Email requests set `Reply-To: you+dc-spokeo-1@gmail.com`.
-- Web-form requests show that address to paste into the broker's form (and assisted fill uses it).
+- Web-form requests show that address to paste into the broker's form (assisted fill and the browser extension use it).
 - Incoming mail to it is matched to the right request, even when the broker's system never quotes our reference.
 - Mail at that address from anyone other than the broker is flagged: *"Spokeo may have shared or leaked your address."*
 
@@ -133,7 +143,7 @@ Most settings live on the in-app **Settings** page. Process-level options are en
 |---|---|---|
 | `DATACLEANER_DATA_DIR` | `./data` | Database and key file |
 | `DATACLEANER_SECRET_KEY` | *(generated `secret.key`)* | Encryption key or passphrase. Set it to keep the key out of backups of the data dir. |
-| `DATACLEANER_HOST` / `DATACLEANER_PORT` | `127.0.0.1` / `8080` | Listen address |
+| `DATACLEANER_HOST` / `DATACLEANER_PORT` | `127.0.0.1` / `25326` | Listen address |
 | `DATACLEANER_SCHEDULER` | `1` | Run the scheduler in-process |
 | `DATACLEANER_SCHEDULER_INTERVAL` | `300` | Seconds between ticks |
 | `DATACLEANER_SEARXNG_URL` | | Default SearXNG URL (compose sets this) |

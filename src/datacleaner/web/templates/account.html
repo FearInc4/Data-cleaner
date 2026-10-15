@@ -50,6 +50,41 @@
   </div>
 </div>
 
+<div class="card" id="extension">
+  <h2>Browser extension</h2>
+  <p>The Data Cleaner extension fills broker opt-out forms for you in your own browser. You still check the details, solve any CAPTCHA and press Submit, and the extension then marks the request as submitted. It only fills forms on the broker's own website, over HTTPS.</p>
+  {% if new_token %}
+  <div class="callout ok">
+    <p><strong>Pairing code for this browser.</strong> Copy it into the extension now. It's shown only once.</p>
+    <table>
+      <tr><th>Data Cleaner address</th><td class="mono">{{ base_url }}</td><td><button type="button" class="copy" data-copy="{{ base_url }}">Copy</button></td></tr>
+      <tr><th>Pairing code</th><td class="mono">{{ new_token }}</td><td><button type="button" class="copy" data-copy="{{ new_token }}">Copy</button></td></tr>
+    </table>
+  </div>
+  {% endif %}
+  <ol class="steps">
+    <li><a href="/account/extension.zip">Download the extension</a> and unzip it.</li>
+    <li><strong>Chrome, Edge, Brave:</strong> open <code>chrome://extensions</code>, turn on Developer mode, choose <em>Load unpacked</em> and pick the unzipped folder. <strong>Firefox:</strong> open <code>about:debugging#/runtime/this-firefox</code> and choose <em>Load Temporary Add-on</em> (Firefox removes it when it restarts).</li>
+    <li>Create a pairing code below, then open the extension and paste the address and code.</li>
+  </ol>
+  <form method="post" action="/account/extension/pair" class="actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="ext-name" class="inline">Name this browser</label>
+    <input id="ext-name" name="name" type="text" class="narrow" placeholder="Laptop" maxlength="80">
+    <button type="submit">Create pairing code</button>
+  </form>
+  {% if browsers %}
+  <table>
+    <tr><th>Browser</th><th>Paired</th><th>Last used</th><th></th></tr>
+    {% for b in browsers %}
+    <tr><td>{{ b.name }}</td><td>{{ b.created_at|date }}</td><td>{{ b.last_used_at|date or "never" }}</td>
+      <td class="right"><form method="post" action="/account/extension/{{ b.id }}/revoke" class="inline" data-confirm="Unpair {{ b.name }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small" type="submit">Unpair</button></form></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  <p class="help">A pairing can see your open web-form requests and the details needed to fill them. It stops working if you unpair it, sign out everywhere, change your password, or don't use it for 60 days.</p>
+</div>
+
 <div class="card danger-zone" id="erase">
   <h2>Erase everything</h2>
   <p>Permanently delete every person, request, finding, breach result, setting and your login from this install, and revoke its Google access. Brokers you've already contacted keep their copy of your request. Use this if you're done, or if you think someone else has had access.</p>
