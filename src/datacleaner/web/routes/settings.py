@@ -21,7 +21,7 @@ SECRET_PLACEHOLDER = "••••••••"
 
 
 @router.get("")
-def settings_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def settings_page(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     s = Settings(db)
     cfg = app_state.get_config()
     groups: dict[str, list] = {}
@@ -47,7 +47,7 @@ def settings_page(request: Request, db: Session = Depends(get_db), user: User = 
 
 
 @router.post("")
-async def settings_save(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+async def settings_save(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     form = await request.form()
     s = Settings(db)
     for d in DEFS:
@@ -79,7 +79,7 @@ async def settings_save(request: Request, db: Session = Depends(get_db), user: U
 
 
 @router.post("/test-smtp")
-def test_smtp(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def test_smtp(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     try:
         SmtpMailer.from_settings(Settings(db)).check()
         flash(request, "SMTP login worked.", "success")
@@ -91,7 +91,7 @@ def test_smtp(request: Request, db: Session = Depends(get_db), user: User = Depe
 
 
 @router.post("/test-imap")
-def test_imap(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def test_imap(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     src = ImapSource.from_settings(Settings(db))
     if not src:
         flash(request, "Fill in IMAP host and username first.", "error")
@@ -105,7 +105,7 @@ def test_imap(request: Request, db: Session = Depends(get_db), user: User = Depe
 
 
 @router.post("/tick")
-def run_tick(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def run_tick(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     db.commit()
     # Scans can take minutes; they run on their own schedule or from the scan pages.
     report = tick(deps=TickDeps(run_scans=False))

@@ -199,3 +199,26 @@ def test_login_lockout(client):
     tok = csrf(client, "/login")
     r = client.post("/login", data={"csrf": tok, "username": "admin", "password": "correct horse battery"}, follow_redirects=True)
     assert "Too many failed attempts" in r.text
+
+
+def test_a_failed_save_is_never_reported_as_success(tmp_path, monkeypatch):
+    # The database commit must happen before the response goes out. Otherwise the
+    # browser is told "saved" (and the extension "recorded") first, and a failed
+    # commit is silently lost.
+    from sqlalchemy.orm import Session
+
+    from datacleaner.config import Config
+    from datacleaner.web.routes import auth
+
+    auth._failures.clear()
+    app = create_app(Config(data_dir=tmp_path, scheduler_enabled=False, allowed_hosts=["testserver"]))
+    with TestClient(app, raise_server_exceptions=False) as c:
+        login(c)
+        tok = csrf(c, "/settings")
+
+        def disk_full(self):
+            raise sqlite3.OperationalError("database or disk is full")
+
+        monkeypatch.setattr(Session, "commit", disk_full)
+        r = c.post("/settings", data={"csrf": tok, "from_name": "Jane"}, follow_redirects=False)
+        assert r.status_code == 500
