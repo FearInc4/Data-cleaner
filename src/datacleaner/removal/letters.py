@@ -13,7 +13,9 @@ from ..models import Broker, Profile, Relation
 
 _env = Environment(
     loader=PackageLoader("datacleaner.removal", "letters"),
-    autoescape=False,  # plain-text email
+    # Plain-text email bodies: HTML-escaping would corrupt them ("&" -> "&amp;"). They are
+    # never inserted into HTML unescaped; the web UI shows them through autoescaped templates.
+    autoescape=False,  # nosec B701
     trim_blocks=True,
     lstrip_blocks=True,
     keep_trailing_newline=True,

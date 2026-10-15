@@ -34,7 +34,38 @@ def init_engine(url: str) -> Engine:
     from . import models  # noqa: F401  (register tables)
 
     Base.metadata.create_all(engine)
+    add_missing_columns(engine)
     return engine
+
+
+def add_missing_columns(engine: Engine) -> list[str]:
+    """Tiny forward-only migration: add columns that newer versions introduced.
+
+    Enough for additive schema changes between releases without asking
+    self-hosters to run a migration tool. Renames/drops would need Alembic.
+    """
+    from sqlalchemy import inspect, text
+
+    added = []
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            existing = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in existing:
+                    continue
+                ddl_type = col.type.compile(dialect=engine.dialect)
+                default = col.default.arg if col.default is not None and not callable(col.default.arg) else None
+                clause = ""
+                if isinstance(default, bool):
+                    clause = f" NOT NULL DEFAULT {1 if default else 0}"
+                elif isinstance(default, (int, float)):
+                    clause = f" NOT NULL DEFAULT {default}"
+                elif isinstance(default, str):
+                    clause = " NOT NULL DEFAULT '" + default.replace("'", "''") + "'"
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl_type}{clause}'))
+                added.append(f"{table.name}.{col.name}")
+    return added
 
 
 def get_engine() -> Engine:

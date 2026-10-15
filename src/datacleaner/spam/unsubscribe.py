@@ -13,7 +13,6 @@ from __future__ import annotations
 import email
 import email.policy
 import imaplib
-import ipaddress
 import re
 import secrets
 from dataclasses import dataclass
@@ -25,9 +24,9 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import net
 from ..mail.inbox import ImapSource
 from ..models import MailingSender, OutboxMessage
-from ..settings import Settings
 
 HEADER_FIELDS = "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST)])"
 
@@ -74,10 +73,17 @@ def parse_headers(raw: bytes) -> UnsubInfo | None:
 
 
 def scan_inbox(session: Session, *, days: int = 60, limit: int = 2000, source: ImapSource | None = None) -> int:
-    settings = Settings(session)
-    source = source or ImapSource.from_settings(settings)
+    from ..mail.transport import get_source
+
     if source is None:
-        raise RuntimeError("Configure IMAP on the Settings page first")
+        active = get_source(session)
+        if active is not None and hasattr(active, "fetch_headers"):
+            # Connected Gmail / Microsoft account.
+            infos = [i for i in (parse_headers(raw) for raw in active.fetch_headers(days, limit)) if i]
+            return record(session, infos)
+        source = active
+    if source is None:
+        raise RuntimeError("Connect your mailbox on the Settings page first")
     conn = source.connect()
     infos: list[UnsubInfo] = []
     try:
@@ -128,26 +134,29 @@ def record(session: Session, infos: list[UnsubInfo]) -> int:
     return len(by_sender)
 
 
+_SAFE_SUBJECT = re.compile(r"[^\w\s.:#@+=-]")
+
+
 def _parse_mailto(mailto: str) -> tuple[str, str, str]:
+    """Recipient and a sanitised subject. The body is always ours.
+
+    The sender of a spam email controls this header. Letting it choose the
+    body would let a stranger send arbitrary text from your account, so only a
+    short single-line subject is kept (some list servers need a token there).
+    """
     parsed = urlparse(mailto)
-    addr = unquote(parsed.path)
+    addr = unquote(parsed.path).strip()
+    if "," in addr or any(c in addr for c in "\r\n<>"):
+        addr = ""  # one recipient only
     qs = parse_qs(parsed.query)
-    subject = qs.get("subject", ["unsubscribe"])[0] or "unsubscribe"
-    body = qs.get("body", ["unsubscribe"])[0] or "unsubscribe"
-    return addr, subject, body
+    subject = " ".join((qs.get("subject", ["unsubscribe"])[0] or "unsubscribe").split())
+    subject = _SAFE_SUBJECT.sub("", subject)[:100] or "unsubscribe"
+    return addr, subject, "unsubscribe"
 
 
 def is_public_https(url: str) -> bool:
     """Header URLs come from strangers; never let one point us at the local network."""
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").lower()
-    if parsed.scheme != "https" or not host or host == "localhost" or host.endswith((".local", ".internal", ".lan")):
-        return False
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return "." in host
-    return ip.is_global
+    return net.is_public_url(url)
 
 
 def unsubscribe(session: Session, sender: MailingSender, *, now: datetime, client: httpx.Client | None = None) -> str:
@@ -156,7 +165,7 @@ def unsubscribe(session: Session, sender: MailingSender, *, now: datetime, clien
         return "failed"
     if sender.one_click_url:
         own = client is None
-        client = client or httpx.Client(timeout=20, follow_redirects=False)
+        client = client or net.public_client(timeout=20, follow_redirects=False)
         try:
             resp = client.post(sender.one_click_url, data={"List-Unsubscribe": "One-Click"})
         except httpx.HTTPError as exc:
@@ -176,7 +185,9 @@ def unsubscribe(session: Session, sender: MailingSender, *, now: datetime, clien
         if "@" not in addr:
             sender.status, sender.detail = "failed", "Invalid mailto address"
             return "failed"
-        domain = (Settings(session).from_address or "datacleaner.local").split("@")[-1]
+        from ..mail.transport import sender_address
+
+        domain = (sender_address(session) or "datacleaner.local").split("@")[-1]
         session.add(OutboxMessage(kind="unsubscribe", to_address=addr, subject=subject[:200], body=body[:1000],
                                   message_id=f"<unsub.{secrets.token_hex(8)}@{domain}>", created_at=now))
         sender.status, sender.detail = "unsubscribed", f"Unsubscribe email queued to {addr}"

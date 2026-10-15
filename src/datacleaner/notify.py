@@ -56,8 +56,11 @@ def send_digest(session: Session, *, now: datetime, since: datetime | None) -> b
     if not text:
         return False
     sent = False
-    if settings.notify_email and settings.from_address:
-        domain = settings.from_address.split("@")[-1]
+    from .mail.transport import sender_address
+
+    sender = sender_address(session)
+    if settings.notify_email and sender:
+        domain = sender.split("@")[-1]
         session.add(OutboxMessage(kind="digest", to_address=settings.notify_email, subject="Data Cleaner: things need your attention",
                                   body=text, message_id=f"<digest.{secrets.token_hex(8)}@{domain}>", created_at=now))
         sent = True

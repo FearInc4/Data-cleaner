@@ -16,14 +16,13 @@ from sqlalchemy.orm import Session
 from ..models import OutboxMessage
 from ..removal import engine
 from ..settings import Settings
+from .transport import MailNotConfigured, get_mailer, sender_address
+
+__all__ = ["MailNotConfigured", "Mailer", "SmtpMailer", "build_message", "drain_outbox", "sent_in_last_hour"]
 
 log = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 5
-
-
-class MailNotConfigured(RuntimeError):
-    pass
 
 
 class Mailer(Protocol):
@@ -65,9 +64,10 @@ class SmtpMailer:
             pass
 
 
-def build_message(msg: OutboxMessage, settings: Settings, *, now: datetime) -> EmailMessage:
+def build_message(msg: OutboxMessage, settings: Settings, *, now: datetime, sender: str | None = None) -> EmailMessage:
+    sender = sender or settings.from_address
     em = EmailMessage()
-    em["From"] = formataddr((settings.from_name or "", settings.from_address))
+    em["From"] = formataddr((settings.from_name or "", sender))
     em["To"] = msg.to_address
     em["Subject"] = msg.subject
     em["Message-ID"] = msg.message_id
@@ -76,7 +76,7 @@ def build_message(msg: OutboxMessage, settings: Settings, *, now: datetime) -> E
         em["In-Reply-To"] = msg.in_reply_to
     if msg.references:
         em["References"] = msg.references
-    em["Reply-To"] = settings.from_address
+    em["Reply-To"] = msg.reply_to or sender
     em.set_content(msg.body)
     return em
 
@@ -97,19 +97,27 @@ def drain_outbox(session: Session, mailer: Mailer | None, *, now: datetime) -> d
     ).all()
     if not queued:
         return stats
+    from .oauth_mail import MailAuthError
+
     if mailer is None:
         try:
-            mailer = SmtpMailer.from_settings(settings)
-        except MailNotConfigured:
+            mailer = get_mailer(session)
+        except (MailNotConfigured, MailAuthError):
             stats["deferred"] = len(queued)
             return stats
+    sender = sender_address(session) or settings.from_address
     budget = max(0, int(settings.rate_limit_per_hour) - sent_in_last_hour(session, now))
-    for msg in queued:
+    for i, msg in enumerate(queued):
         if budget <= 0:
             stats["deferred"] += 1
             continue
         try:
-            mailer.send(build_message(msg, settings, now=now))
+            mailer.send(build_message(msg, settings, now=now, sender=sender))
+        except MailAuthError as exc:
+            # The mailbox needs reconnecting; keep everything queued rather than failing requests.
+            log.warning("Mailbox needs reconnecting: %s", exc)
+            stats["deferred"] += len(queued) - i
+            break
         except Exception as exc:  # network errors, auth errors, refused recipients
             msg.attempts += 1
             msg.error = str(exc)[:1000]

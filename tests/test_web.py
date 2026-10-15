@@ -20,7 +20,7 @@ def client(tmp_path):
     from datacleaner.web.routes import auth
 
     auth._failures.clear()
-    app = create_app(Config(data_dir=tmp_path, scheduler_enabled=False))
+    app = create_app(Config(data_dir=tmp_path, scheduler_enabled=False, allowed_hosts=["testserver"]))
     with TestClient(app) as c:
         yield c
 
@@ -32,11 +32,18 @@ def csrf(c, url):
     return m.group(1)
 
 
+def setup_token(c):
+    from datacleaner.app_state import get_config
+
+    return (get_config().data_dir / "setup-token").read_text().strip()
+
+
 def login(c):
+    c.get(f"/setup?token={setup_token(c)}")
     tok = csrf(c, "/setup")
     r = c.post("/setup", data={"csrf": tok, "username": "admin", "password": "correct horse battery", "password2": "correct horse battery"},
                follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/profiles/new"
+    assert r.status_code == 303 and r.headers["location"] == "/welcome"
 
 
 def add_profile(c, **extra):

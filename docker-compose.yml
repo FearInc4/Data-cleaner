@@ -1,24 +1,42 @@
 # Self-host Data Cleaner with a private SearXNG search backend.
 #
 #   docker compose up -d
+#   docker compose logs datacleaner     # shows your one-time setup link
 #   open http://localhost:8080
 #
 # Only port 8080 on localhost is exposed. For access from other devices, use
-# Tailscale or a reverse proxy with HTTPS (see README → Remote access).
+# Tailscale or a reverse proxy with HTTPS and set DATACLEANER_BASE_URL.
+x-hardening: &hardening
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=64m
+
 services:
   datacleaner:
     build: .
     restart: unless-stopped
+    <<: *hardening
+    cap_drop:
+      - ALL
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./data:/data
     environment:
       DATACLEANER_SEARXNG_URL: http://searxng:8080
-      # Keep the encryption key out of the data volume (recommended for backups):
-      # DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY}
-      # Set when serving over HTTPS:
-      # DATACLEANER_SECURE_COOKIES: "1"
+      # The address you open in your browser. Needed for Google/Microsoft sign-in
+      # when it isn't http://localhost:8080 (https:// also turns on secure cookies + HSTS).
+      DATACLEANER_BASE_URL: ${DATACLEANER_BASE_URL:-}
+      # Keep the encryption key outside ./data so a copied backup alone can't be decrypted.
+      DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY:-}
+      DATACLEANER_GOOGLE_CLIENT_ID: ${DATACLEANER_GOOGLE_CLIENT_ID:-}
+      DATACLEANER_GOOGLE_CLIENT_SECRET: ${DATACLEANER_GOOGLE_CLIENT_SECRET:-}
+      DATACLEANER_MICROSOFT_CLIENT_ID: ${DATACLEANER_MICROSOFT_CLIENT_ID:-}
+      DATACLEANER_MICROSOFT_CLIENT_SECRET: ${DATACLEANER_MICROSOFT_CLIENT_SECRET:-}
+    mem_limit: 512m
+    pids_limit: 256
     depends_on:
       - searxng
 
@@ -31,9 +49,12 @@ services:
     environment:
       SEARXNG_BASE_URL: http://searxng:8080/
       SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-to-a-long-random-string}
+    security_opt:
+      - no-new-privileges:true
     cap_drop:
       - ALL
     cap_add:
       - CHOWN
       - SETGID
       - SETUID
+    mem_limit: 512m

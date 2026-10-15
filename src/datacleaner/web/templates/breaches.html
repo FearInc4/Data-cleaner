@@ -25,7 +25,7 @@
     <tr><th>Breach / paste</th><th>Date</th><th>Data exposed</th><th>Source</th><th></th></tr>
     {% for f in findings %}
     <tr>
-      <td>{% if f.url %}<a href="{{ f.url }}" target="_blank" rel="noopener noreferrer">{{ f.title }}</a>{% else %}{{ f.title }}{% endif %}
+      <td>{% if f.url %}<a href="{{ f.url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ f.title }}</a>{% else %}{{ f.title }}{% endif %}
         <span class="badge {{ 'err' if f.kind == 'paste' else ('warn' if f.kind == 'breach' else 'info') }}">{{ f.kind }}</span>
         {% if f.status == "resolved" %}<span class="badge ok">handled</span>{% endif %}
         <br><small class="muted">{{ f.snippet }}</small></td>

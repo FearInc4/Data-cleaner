@@ -44,7 +44,7 @@
       <td>{{ f.matched_fields|join(", ") }}</td>
       <td class="nowrap">{{ f.last_seen|date }}</td>
       <td class="actions">
-        {% if f.url %}<a class="btn small" href="{{ f.url }}" target="_blank" rel="noopener noreferrer">Open ↗</a>{% endif %}
+        {% if f.url %}<a class="btn small" href="{{ f.url|safe_url }}" target="_blank" rel="noopener noreferrer">Open ↗</a>{% endif %}
         {% if f.status in ("new",) %}
         <form method="post" action="/findings/{{ f.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/scan">
           <button class="small primary" name="action" value="remove" type="submit">Request removal</button>
@@ -64,7 +64,7 @@
     <tr><th>Page</th><th>Matched</th><th>Score</th><th></th></tr>
     {% for f in results %}
     <tr>
-      <td><a href="{{ f.url }}" target="_blank" rel="noopener noreferrer">{{ f.title or f.url|host }}</a> {{ finding_state(f) }}<br><small class="muted">{{ f.url|host }}{% if f.broker %} · known broker: <a href="/brokers/{{ f.broker.slug }}">{{ f.broker.name }}</a>{% endif %}</small>
+      <td><a href="{{ f.url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ f.title or f.url|host }}</a> {{ finding_state(f) }}<br><small class="muted">{{ f.url|host }}{% if f.broker %} · known broker: <a href="/brokers/{{ f.broker.slug }}">{{ f.broker.name }}</a>{% endif %}</small>
         {% if f.snippet %}<br><small>{{ f.snippet[:240] }}</small>{% endif %}</td>
       <td>{{ f.matched_fields|join(", ") }}</td>
       <td>{{ (f.score * 100)|round|int }}%</td>

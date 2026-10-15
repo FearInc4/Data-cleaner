@@ -50,8 +50,58 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(String(80), unique=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    username: Mapped[str] = mapped_column(String(320), unique=True)
+    # "" means no password: this person signs in with Google/Microsoft only.
+    password_hash: Mapped[str] = mapped_column(String(255), default="")
+    # Bumped to sign out every session ("Sign out everywhere", password change).
+    session_version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    identities: Mapped[list["OAuthIdentity"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self.password_hash)
+
+
+class OAuthIdentity(Base):
+    """A Google/Microsoft account allowed to sign in as a user.
+
+    Matched on the provider's stable subject id, never on the email claim
+    (email claims can be changed or unverified; see the "nOAuth" attack).
+    """
+
+    __tablename__ = "oauth_identities"
+    __table_args__ = (UniqueConstraint("provider", "subject"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[str] = mapped_column(String(20))
+    subject: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="identities")
+
+
+class MailAccount(Base):
+    """A mailbox connected with OAuth (Gmail API / Microsoft Graph) for sending and reading."""
+
+    __tablename__ = "mail_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20))  # google, microsoft
+    subject: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(EncryptedText)
+    display_name: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    refresh_token: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    access_token: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
+    access_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    scopes: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="ok")  # ok, needs_reconnect
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cursor: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # inbox polling position
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -227,6 +277,8 @@ class RemovalRequest(Base):
     recheck_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     escalated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     paused: Mapped[bool] = mapped_column(Boolean, default=False)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False)  # a reply we couldn't verify
+    reply_alias: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)  # per-broker address
     notes: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
 
     profile: Mapped[Profile] = relationship(back_populates="requests")
@@ -263,6 +315,7 @@ class OutboxMessage(Base):
     subject: Mapped[str] = mapped_column(EncryptedText)
     body: Mapped[str] = mapped_column(EncryptedText)
     message_id: Mapped[str] = mapped_column(String(300))
+    reply_to: Mapped[str | None] = mapped_column(EncryptedText, nullable=True)
     in_reply_to: Mapped[str | None] = mapped_column(String(300), nullable=True)
     references: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="queued")  # queued, sent, failed

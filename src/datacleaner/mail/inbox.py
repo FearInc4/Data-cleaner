@@ -9,26 +9,29 @@ from collections.abc import Callable, Iterable
 from datetime import datetime
 from typing import Protocol
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import net
 from ..brokers import host_matches
-from ..models import Broker, OutboxMessage, RemovalRequest, RequestEvent, RequestStatus
+from ..models import Broker, OutboxMessage, Profile, RemovalRequest, RequestEvent, RequestStatus
 from ..removal import engine
 from ..settings import Settings
+from .aliases import parse_alias
 from .parse import (
+    MSGID_RE,
     Classification,
     IncomingMessage,
-    MSGID_RE,
     ReplyKind,
     classify,
     find_reference,
     parse_message,
     verification_links,
 )
+from .trust import STRONG, recipients, sender_trust
 
 log = logging.getLogger(__name__)
+MAX_MESSAGE_BYTES = 10 * 1024 * 1024
 
 
 class MailSource(Protocol):
@@ -80,7 +83,7 @@ class ImapSource:
             uids = [int(u) for u in (data[0] or b"").split() if int(u) > last_uid][:limit]
             out: list[IncomingMessage] = []
             for uid in uids:
-                typ, msg_data = conn.uid("fetch", str(uid), "(BODY.PEEK[])")
+                typ, msg_data = conn.uid("fetch", str(uid), f"(BODY.PEEK[]<0.{MAX_MESSAGE_BYTES}>)")
                 if typ != "OK" or not msg_data or not isinstance(msg_data[0], tuple):
                     continue
                 try:
@@ -112,7 +115,30 @@ def _imap_date_days_ago(days: int) -> str:
 
 # --- matching ------------------------------------------------------------------
 
-def match_request(session: Session, msg: IncomingMessage, bounce: bool = False) -> RemovalRequest | None:
+def _request_for_alias(session: Session, msg: IncomingMessage) -> RemovalRequest | None:
+    catchall = Settings(session).alias_domain or None
+    for addr in recipients(msg):
+        parsed = parse_alias(addr, catchall_domain=catchall)
+        if not parsed:
+            continue
+        slug, profile_id = parsed
+        if not session.get(Profile, profile_id):
+            continue
+        reqs = session.scalars(
+            select(RemovalRequest).join(Broker).where(RemovalRequest.profile_id == profile_id)
+            .order_by(RemovalRequest.created_at.desc())
+        ).all()
+        # Exact slug first; a long slug may have been shortened to fit the address.
+        for match in (lambda b: b.slug == slug, lambda b: b.slug.startswith(slug)):
+            candidates = [r for r in reqs if match(r.broker)]
+            open_ = [r for r in candidates if r.status not in RequestStatus.TERMINAL]
+            if open_ or candidates:
+                return (open_ or candidates)[0]
+    return None
+
+
+def match_request(session: Session, msg: IncomingMessage, bounce: bool = False) -> tuple[RemovalRequest | None, str]:
+    """Find the request an email belongs to. Returns (request, how it was matched)."""
     # 1. Threading headers (and, for bounces, Message-IDs quoted in the DSN body).
     ids = list(msg.thread_ids)
     if bounce or not ids:
@@ -120,17 +146,22 @@ def match_request(session: Session, msg: IncomingMessage, bounce: bool = False) 
     if ids:
         ev = session.scalars(select(RequestEvent).where(RequestEvent.message_id.in_(ids))).first()
         if ev:
-            return ev.request
+            return ev.request, "thread"
         out = session.scalars(select(OutboxMessage).where(OutboxMessage.message_id.in_(ids))).first()
         if out and out.request_id:
-            return session.get(RemovalRequest, out.request_id)
-    # 2. Our reference token in subject/body.
+            return session.get(RemovalRequest, out.request_id), "thread"
+    # 2. Our private reference token in subject/body.
     ref = find_reference(msg)
     if ref:
         req = session.scalars(select(RemovalRequest).where(RemovalRequest.reference == ref)).first()
         if req:
-            return req
-    # 3. Sender's domain belongs to a broker with exactly one open request.
+            return req, "reference"
+    # 3. Sent to a per-broker alias.
+    if not bounce:
+        req = _request_for_alias(session, msg)
+        if req:
+            return req, "alias"
+    # 4. Sender's domain belongs to a broker with exactly one open request.
     if msg.from_domain and not bounce:
         candidates = []
         open_reqs = session.scalars(
@@ -143,8 +174,8 @@ def match_request(session: Session, msg: IncomingMessage, bounce: bool = False) 
             if host_matches(msg.from_domain, domains):
                 candidates.append(req)
         if len(candidates) == 1:
-            return candidates[0]
-    return None
+            return candidates[0], "domain"
+    return None, ""
 
 
 # --- acting on replies -------------------------------------------------------------
@@ -153,25 +184,61 @@ Clicker = Callable[[str], int]
 
 
 def default_clicker(url: str) -> int:
-    with httpx.Client(follow_redirects=True, timeout=20, headers={"User-Agent": "Mozilla/5.0 (DataCleaner verification)"}) as client:
+    # Verification links come from email: refuse anything that isn't a public https host, at every redirect.
+    with net.public_client(timeout=20) as client:
         return client.get(url).status_code
 
 
+def _our_message_ids(req: RemovalRequest) -> set[str]:
+    return {e.message_id for e in req.events if e.direction == "out" and e.message_id}
+
+
+def _flag_for_review(session: Session, req: RemovalRequest, summary: str, *, now: datetime) -> None:
+    req.needs_review = True
+    engine.add_event(session, req, "review", summary, now=now)
+
+
 def apply_reply(session: Session, req: RemovalRequest, msg: IncomingMessage, cls: Classification, *,
-                now: datetime, clicker: Clicker | None = None) -> str:
-    """Record the reply on the request and move it along. Returns a short description of what happened."""
+                now: datetime, clicker: Clicker | None = None, trust: str = "thread", matched_by: str = "thread") -> str:
+    """Record the reply on the request and move it along. Returns a short description of what happened.
+
+    Only replies we can tie to the broker (``trust`` in STRONG) change the request's state.
+    Anything else is kept for the person to judge, and the follow-up clock keeps running.
+    """
     settings = Settings(session)
-    if cls.kind != ReplyKind.BOUNCE:
+    strong = trust in STRONG
+    if cls.kind != ReplyKind.BOUNCE and strong:
         req.last_reply_at = now
     summary = f"Reply from {msg.from_addr}: {msg.subject[:120]}"
+    if not strong:
+        summary += " (sender not verified)"
     engine.add_event(session, req, "reply", summary, now=now, direction="in", body=msg.text[:20000],
                      message_id=msg.message_id)
     detail = f" ({cls.evidence})" if cls.evidence else ""
 
     if cls.kind == ReplyKind.BOUNCE:
+        if matched_by != "thread":
+            _flag_for_review(session, req, "A bounce notice arrived but doesn't quote our message. Check it.", now=now)
+            return "unverified"
         engine.set_status(session, req, RequestStatus.NEEDS_USER_ACTION, now=now,
                           summary="Email bounced; the broker's address may have changed. Check the broker page or use their web form.")
         return "bounce"
+
+    if cls.kind == ReplyKind.AUTO_REPLY:
+        return "auto_reply"
+
+    if not strong:
+        if matched_by == "alias" and trust == "none":
+            hint = (f"Mail from {msg.from_domain or 'an unknown sender'} arrived at the address you gave {req.broker.name}. "
+                    f"If it isn't from {req.broker.name}, they may have shared or leaked your address.")
+        else:
+            label = {ReplyKind.COMPLETED: "says the request is complete", ReplyKind.NOT_FOUND: "says they hold no data",
+                     ReplyKind.NEEDS_VERIFICATION: "asks you to confirm", ReplyKind.NEEDS_INFO: "asks for more information",
+                     ReplyKind.REJECTED: "declines the request", ReplyKind.ACKNOWLEDGED: "acknowledges the request"}.get(cls.kind, "arrived")
+            hint = (f"A reply {label}, but we can't prove it came from {req.broker.name}. "
+                    "Read it, and update the request yourself if it's genuine. Follow-ups continue meanwhile.")
+        _flag_for_review(session, req, hint, now=now)
+        return "unverified"
 
     if cls.kind in (ReplyKind.COMPLETED, ReplyKind.NOT_FOUND):
         label = "Broker confirmed deletion" if cls.kind == ReplyKind.COMPLETED else "Broker says it holds no data about you"
@@ -179,8 +246,7 @@ def apply_reply(session: Session, req: RemovalRequest, msg: IncomingMessage, cls
         return cls.kind
 
     if cls.kind == ReplyKind.NEEDS_VERIFICATION:
-        domains = list(req.broker.domains or [])
-        links = verification_links(msg, domains)
+        links = verification_links(msg, list(req.broker.domains or []))
         if links and settings.auto_click_verification:
             clicker = clicker or default_clicker
             try:
@@ -212,11 +278,8 @@ def apply_reply(session: Session, req: RemovalRequest, msg: IncomingMessage, cls
             engine.set_status(session, req, RequestStatus.ACKNOWLEDGED, now=now, summary="Broker acknowledged" + detail)
         return "acknowledged"
 
-    if cls.kind == ReplyKind.AUTO_REPLY:
-        return "auto_reply"
-
     # Unknown: a human should read it, but don't stop the clock on the broker.
-    engine.add_event(session, req, "review", "New reply needs your review", now=now)
+    _flag_for_review(session, req, "New reply needs your review", now=now)
     if req.status in (RequestStatus.SENT, RequestStatus.QUEUED):
         req.status = RequestStatus.ACKNOWLEDGED
         session.flush()
@@ -226,27 +289,30 @@ def apply_reply(session: Session, req: RemovalRequest, msg: IncomingMessage, cls
 
 def process_inbox(session: Session, source: MailSource | None, *, now: datetime,
                   clicker: Clicker | None = None) -> dict[str, int]:
+    from .transport import get_source, sender_address
+
     stats: dict[str, int] = {"fetched": 0, "matched": 0}
     if source is None:
-        source = ImapSource.from_settings(Settings(session))
+        source = get_source(session)
         if source is None:
             return stats
+    own = (sender_address(session) or "").lower()
     for msg in source.fetch_new(session):
         stats["fetched"] += 1
         if msg.message_id and session.scalars(
             select(RequestEvent).where(RequestEvent.message_id == msg.message_id, RequestEvent.direction == "in")
         ).first():
-            continue  # already processed (e.g. after a UIDVALIDITY reset)
+            continue  # already processed
         cls = classify(msg)
-        req = match_request(session, msg, bounce=cls.kind == ReplyKind.BOUNCE)
+        req, how = match_request(session, msg, bounce=cls.kind == ReplyKind.BOUNCE)
         if req is None:
             continue
         # Ignore copies of our own outgoing messages (e.g. Gmail shows sent mail in All Mail).
-        own = Settings(session).from_address
-        if own and msg.from_addr == own.lower() and cls.kind != ReplyKind.BOUNCE:
+        if own and msg.from_addr == own and cls.kind != ReplyKind.BOUNCE:
             continue
+        trust = "thread" if how == "thread" else sender_trust(msg, req, our_message_ids=_our_message_ids(req))
         stats["matched"] += 1
-        outcome = apply_reply(session, req, msg, cls, now=now, clicker=clicker)
+        outcome = apply_reply(session, req, msg, cls, now=now, clicker=clicker, trust=trust, matched_by=how)
         stats[outcome] = stats.get(outcome, 0) + 1
         session.flush()
     return stats

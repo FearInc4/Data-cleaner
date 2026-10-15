@@ -27,7 +27,7 @@
 
 {% if show_drop %}
 <div class="callout">
-  <strong>California resident?</strong> Use the state's free <a href="{{ drop_url }}" rel="noopener" target="_blank">DROP platform</a>. One verified request reaches every registered data broker, and they must re-check it every 45 days.
+  <strong>California resident?</strong> Use the state's free <a href="{{ drop_url|safe_url }}" rel="noopener" target="_blank">DROP platform</a>. One verified request reaches every registered data broker, and they must re-check it every 45 days.
   Data Cleaner still covers the sites that aren't registered (or ignore DROP).
 </div>
 {% endif %}

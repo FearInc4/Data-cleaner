@@ -12,7 +12,7 @@
     <li class="{{ 'done' if item.id in done }}">
       <form method="post" action="/spam/checklist" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="item_id" value="{{ item.id }}">
         <button class="small" type="submit" title="Toggle done">{{ "✅" if item.id in done else "☐" }}</button></form>
-      <div><div class="title">{% if item.url %}<a href="{{ item.url }}" {% if item.url.startswith('http') %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}{{ item.title }}{% endif %} <span class="badge">{{ item.category }}</span></div>
+      <div><div class="title">{% if item.url %}<a href="{{ item.url|safe_url }}" {% if item.url.startswith('http') %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}{{ item.title }}{% endif %} <span class="badge">{{ item.category }}</span></div>
         {% if item.why %}<small class="muted">{{ item.why }}</small>{% endif %}</div>
     </li>
     {% endfor %}
@@ -81,7 +81,7 @@
         <td><input type="checkbox" name="sender_id" value="{{ s.id }}" {{ 'disabled' if s.status == 'unsubscribed' }}></td>
         <td>{{ s.display_name or s.sender }}<br><small class="muted">{{ s.sender }} · {{ (s.sample_subject or "")[:80] }}</small></td>
         <td>{{ s.messages }}</td>
-        <td>{% if s.one_click_url %}<span class="badge ok">one-click</span>{% elif s.mailto %}<span class="badge info">email</span>{% elif s.web_url %}<a class="badge warn" href="{{ s.web_url }}" target="_blank" rel="noopener noreferrer">web link ↗</a>{% endif %}</td>
+        <td>{% if s.one_click_url %}<span class="badge ok">one-click</span>{% elif s.mailto %}<span class="badge info">email</span>{% elif s.web_url %}<a class="badge warn" href="{{ s.web_url|safe_url }}" target="_blank" rel="noopener noreferrer">web link ↗</a>{% endif %}</td>
         <td>{{ s.status }}{% if s.detail %}<br><small class="muted">{{ s.detail }}</small>{% endif %}</td>
       </tr>
       {% endfor %}

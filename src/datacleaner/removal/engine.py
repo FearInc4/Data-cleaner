@@ -109,9 +109,22 @@ def add_event(session: Session, req: RemovalRequest, type_: str, summary: str, *
     return ev
 
 
-def _message_id(reference: str, settings: Settings) -> str:
-    domain = (settings.from_address or "datacleaner.local").split("@")[-1] or "datacleaner.local"
+def _message_id(reference: str, session: Session) -> str:
+    from ..mail.transport import sender_address
+
+    domain = (sender_address(session) or "datacleaner.local").split("@")[-1] or "datacleaner.local"
     return f"<{reference.lower()}.{secrets.token_hex(6)}@{domain}>"
+
+
+def ensure_alias(session: Session, req: RemovalRequest) -> str | None:
+    """The per-broker address for this request ("" = person turned aliases off for it)."""
+    from ..mail.transport import alias_for
+
+    if req.reply_alias is None:
+        alias = alias_for(session, req.broker.slug, req.profile)
+        if alias:
+            req.reply_alias = alias
+    return req.reply_alias or None
 
 
 def _thread_ids(req: RemovalRequest) -> list[str]:
@@ -178,7 +191,7 @@ def approve(session: Session, req: RemovalRequest, *, now: datetime) -> OutboxMe
     letter = preview_initial(req, settings, today=now)
     msg = OutboxMessage(
         request_id=req.id, kind="initial", to_address=req.to_address, subject=letter.subject,
-        body=letter.body, message_id=_message_id(req.reference, settings), created_at=now,
+        body=letter.body, message_id=_message_id(req.reference, session), reply_to=ensure_alias(session, req), created_at=now,
     )
     session.add(msg)
     req.status = RequestStatus.QUEUED
@@ -283,7 +296,7 @@ def _enqueue_followup(session: Session, req: RemovalRequest, kind: str, *, now: 
     thread = _thread_ids(req)
     msg = OutboxMessage(
         request_id=req.id, kind=kind, to_address=req.to_address, subject=letter.subject, body=letter.body,
-        message_id=_message_id(req.reference, settings),
+        message_id=_message_id(req.reference, session), reply_to=ensure_alias(session, req),
         in_reply_to=thread[0] if thread else None, references=" ".join(thread) or None, created_at=now,
     )
     session.add(msg)

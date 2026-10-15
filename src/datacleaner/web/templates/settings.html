@@ -1,39 +1,112 @@
 {% extends "base.html" %}
+{% from "_macros.html" import provider_buttons, provider_icon, mailbox_name %}
+
+{% macro field(d, value) -%}
+<div>
+  {% if d.kind == "bool" %}
+    <label class="check"><input type="checkbox" name="{{ d.key }}" {{ 'checked' if value }}> {{ d.label }}</label>
+  {% elif d.kind == "choice" %}
+    <label for="{{ d.key }}">{{ d.label }}</label>
+    {% set names = {"plus": "Plus address (you+broker@…)", "catchall": "Catch-all domain", "off": "Off (plain address)",
+                    "starttls": "STARTTLS (port 587)", "ssl": "SSL/TLS (port 465)", "none": "None (not recommended)"} %}
+    <select id="{{ d.key }}" name="{{ d.key }}">{% for c in d.choices %}<option value="{{ c }}" {{ 'selected' if c == value }}>{{ names.get(c, c) }}</option>{% endfor %}</select>
+  {% else %}
+    <label for="{{ d.key }}">{{ d.label }}</label>
+    <input id="{{ d.key }}" name="{{ d.key }}" type="{{ 'password' if d.kind == 'secret' else ('number' if d.kind == 'int' else 'text') }}" value="{{ value }}" autocomplete="off">
+  {% endif %}
+  {% if d.help %}<div class="help">{{ d.help }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
 {% block content %}
 <div class="page-head">
-  <div><h1>Settings</h1><p class="muted">Secrets are encrypted at rest. Leave a secret as ••••••••, or blank, to keep its current value.</p></div>
+  <div><h1>Settings</h1><p class="muted">Secrets are encrypted at rest and never shown again. Leave ••••••••, or blank, to keep the current value.</p></div>
   <form method="post" action="/settings/tick" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Run scheduler now</button></form>
 </div>
-<div class="callout">
-  <strong>Email tips:</strong> Use a dedicated address (an alias such as privacy-you@yourdomain or a new Gmail/Fastmail/Proton Bridge account) so broker replies don't get lost.
-  Gmail: smtp.gmail.com:587 (starttls) / imap.gmail.com:993 with an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">app password</a>.
-  Outlook: smtp-mail.outlook.com:587 / outlook.office365.com:993. Fastmail: smtp.fastmail.com:465 (ssl) / imap.fastmail.com:993.
+
+<div class="card" id="email">
+  <h2>Email account</h2>
+  {% if mail.account %}
+    {% set a = mail.account %}
+    <p><span class="status-dot {{ '' if a.status == 'ok' else 'bad' }}"></span>Sending and reading as <strong>{{ a.email }}</strong> via {{ mailbox_name(a.provider) }}.</p>
+    {% if a.status != "ok" %}
+      <div class="callout warn">This mailbox needs reconnecting: {{ a.last_error }}. Requests are paused in the outbox until you do.</div>
+      <a class="btn primary" href="/auth/{{ a.provider }}/start?purpose=connect">{{ provider_icon(a.provider) }} Reconnect</a>
+    {% endif %}
+    <form method="post" action="/account/disconnect/{{ a.id }}" class="inline" data-confirm="Disconnect {{ a.email }}? Data Cleaner will stop sending and reading mail.">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="small" type="submit">Disconnect</button>
+    </form>
+  {% elif mail.kind == "smtp" %}
+    <p><span class="status-dot"></span>Sending as <strong>{{ mail.email }}</strong> via SMTP{% if mail.can_read %}, reading replies over IMAP{% else %}. <strong>Replies aren't being read</strong>: add IMAP below{% endif %}.</p>
+  {% else %}
+    <p>Connect the mailbox you want requests sent from. Replies are read automatically.</p>
+  {% endif %}
+  {% if not mail.account %}
+    {% if providers %}{{ provider_buttons(providers, "connect", "Connect") }}
+    {% else %}<p class="help">To connect Gmail or Outlook in one click, first set up <a href="#sign-in-apps">sign-in apps</a> below.</p>{% endif %}
+  {% endif %}
 </div>
+
 <form method="post" action="/settings">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  {% for group, items in groups.items() %}
+
+  <fieldset class="card">
+    <legend>Per-broker addresses</legend>
+    <div class="row">{% for d, value in groups["Per-broker addresses"] %}{{ field(d, value) }}{% endfor %}</div>
+    {% if sample_alias %}<p>Example: Spokeo gets <code class="alias">{{ sample_alias }}</code>. Replies to it are matched to the Spokeo request automatically, and if spam ever arrives at it, you'll know Spokeo shared your address.</p>
+    {% else %}<p class="help">Connect a mailbox to see your addresses.</p>{% endif %}
+  </fieldset>
+
+  <details class="card advanced" {{ 'open' if mail.kind == "smtp" }}>
+    <summary>Use another email provider (SMTP / IMAP)</summary>
+    <p class="help">For Fastmail, iCloud, Proton (Bridge), Yahoo or your own server. Use an app password, not your main password.
+      Gmail: smtp.gmail.com:587 starttls / imap.gmail.com:993. Outlook: smtp-mail.outlook.com:587 / outlook.office365.com:993. Fastmail: smtp.fastmail.com:465 ssl / imap.fastmail.com:993.
+      {% if mail.account %}<strong>A connected mailbox takes priority over these.</strong>{% endif %}</p>
+    <h3>Sending</h3>
+    <div class="row">{% for d, value in groups["Email (sending)"] %}{{ field(d, value) }}{% endfor %}</div>
+    <p><button class="small" type="submit" formaction="/settings/test-smtp">Test SMTP login</button> <small class="muted">Save first.</small></p>
+    <h3>Reading replies</h3>
+    <div class="row">{% for d, value in groups["Email (reading replies)"] %}{{ field(d, value) }}{% endfor %}</div>
+    <p><button class="small" type="submit" formaction="/settings/test-imap">Test IMAP login</button> <small class="muted">If the IMAP password is blank it reuses the SMTP one when the usernames match.</small></p>
+  </details>
+
+  {% for group in ["Removal requests", "Monitoring", "Spam blocking", "Notifications"] %}
   <fieldset class="card">
     <legend>{{ group }}</legend>
-    <div class="row">
-    {% for d, value in items %}
-      <div>
-        {% if d.kind == "bool" %}
-          <label class="check"><input type="checkbox" name="{{ d.key }}" {{ 'checked' if value }}> {{ d.label }}</label>
-        {% elif d.kind == "choice" %}
-          <label for="{{ d.key }}">{{ d.label }}</label>
-          <select id="{{ d.key }}" name="{{ d.key }}">{% for c in d.choices %}<option value="{{ c }}" {{ 'selected' if c == value }}>{{ c }}</option>{% endfor %}</select>
-        {% else %}
-          <label for="{{ d.key }}">{{ d.label }}</label>
-          <input id="{{ d.key }}" name="{{ d.key }}" type="{{ 'password' if d.kind == 'secret' else ('number' if d.kind == 'int' else 'text') }}" value="{{ value }}" autocomplete="off">
-        {% endif %}
-        {% if d.help %}<div class="help">{{ d.help }}</div>{% endif %}
-      </div>
-    {% endfor %}
-    </div>
-    {% if group == "Email (sending)" %}<p><button class="small" type="submit" formaction="/settings/test-smtp">Test SMTP login</button> <small class="muted">(saves nothing; save first)</small></p>{% endif %}
-    {% if group == "Email (reading replies)" %}<p><button class="small" type="submit" formaction="/settings/test-imap">Test IMAP login</button> <small class="muted">If left blank, the IMAP password defaults to the SMTP one when the usernames match.</small></p>{% endif %}
+    <div class="row">{% for d, value in groups[group] %}{{ field(d, value) }}{% endfor %}</div>
   </fieldset>
   {% endfor %}
+
+  <details class="card advanced" id="sign-in-apps" {{ 'open' if not providers }}>
+    <summary>Sign-in apps (Google &amp; Microsoft)</summary>
+    <p class="help">Each install uses its own OAuth app, so your mailbox access belongs to you and nobody else. One-time setup, about 5 minutes per provider.
+      {% if not base_url_configured %}These redirect URIs use the address you're on now ({{ base_url }}). If you reach Data Cleaner at another address, set <code>DATACLEANER_BASE_URL</code>.{% endif %}</p>
+    {% for app in apps %}
+    <h3>{{ provider_icon(app.provider.key) }} {{ app.provider.name }} {% if app.configured %}<span class="badge ok">configured{{ " via environment" if app.from_env }}</span>{% else %}<span class="badge">not set up</span>{% endif %}</h3>
+    {% if app.provider.key == "google" %}
+    <ol class="steps">
+      <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud Console</a> and create a project (any name).</li>
+      <li>Enable the <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener">Gmail API</a>.</li>
+      <li>Go to <strong>Google Auth Platform → Branding</strong>, fill in an app name and your email. Under <strong>Audience</strong>, choose External and add yourself as a test user.</li>
+      <li>Under <strong>Data Access</strong>, add the scopes <code>gmail.send</code> and <code>gmail.readonly</code>.</li>
+      <li>Under <strong>Clients</strong>, create a <strong>Web application</strong> client with this redirect URI: <code>{{ app.redirect_uri }}</code> <button type="button" class="copy" data-copy="{{ app.redirect_uri }}">Copy</button></li>
+      <li>Paste the client ID and secret below.</li>
+      <li>Optional but recommended: under <strong>Audience</strong>, press <strong>Publish app</strong>. Apps left in "Testing" have to be reconnected every 7 days. You'll see an "unverified app" notice when you connect; that's expected for your own private app.</li>
+    </ol>
+    {% else %}
+    <ol class="steps">
+      <li>Open <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">App registrations</a> and choose <strong>New registration</strong>.</li>
+      <li>Supported account types: <strong>Accounts in any organizational directory and personal Microsoft accounts</strong>.</li>
+      <li>Redirect URI: platform <strong>Web</strong>, <code>{{ app.redirect_uri }}</code> <button type="button" class="copy" data-copy="{{ app.redirect_uri }}">Copy</button></li>
+      <li>Under <strong>Certificates &amp; secrets</strong>, create a client secret and copy its <strong>Value</strong>.</li>
+      <li>Under <strong>API permissions → Microsoft Graph → Delegated</strong>, add <code>Mail.Send</code>, <code>Mail.Read</code>, <code>User.Read</code>, <code>offline_access</code>.</li>
+      <li>Paste the Application (client) ID and secret value below.</li>
+    </ol>
+    {% endif %}
+    {% endfor %}
+    <div class="row">{% for d, value in groups["Sign-in apps"] %}{{ field(d, value) }}{% endfor %}</div>
+  </details>
+
   <p><button class="primary" type="submit">Save settings</button></p>
 </form>
 <p class="muted">Scheduler last ran: {{ last_tick or "not yet" }}</p>

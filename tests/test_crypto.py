@@ -29,3 +29,16 @@ def test_password_hashing():
     assert verify_password("hunter2hunter2", h)
     assert not verify_password("hunter3hunter3", h)
     assert not verify_password("x", "garbage")
+
+
+def test_additive_migration(session):
+    from sqlalchemy import text
+
+    from datacleaner.db import add_missing_columns, get_engine
+
+    engine = get_engine()
+    session.close()
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE removal_requests DROP COLUMN needs_review"))
+    assert add_missing_columns(engine) == ["removal_requests.needs_review"]
+    assert add_missing_columns(engine) == []

@@ -15,7 +15,7 @@ from .models import Setting
 class SettingDef:
     key: str
     default: Any
-    kind: str = "str"  # str, int, bool, secret, choice
+    kind: str = "str"  # str, int, bool, secret (encrypted, hidden), private (encrypted, shown), choice
     label: str = ""
     help: str = ""
     group: str = "General"
@@ -27,18 +27,29 @@ DEFS: list[SettingDef] = [
     SettingDef("smtp_host", "", label="SMTP host", group="Email (sending)", help="e.g. smtp.gmail.com, smtp.fastmail.com"),
     SettingDef("smtp_port", 587, "int", "SMTP port", group="Email (sending)"),
     SettingDef("smtp_security", "starttls", "choice", "SMTP security", group="Email (sending)", choices=("starttls", "ssl", "none")),
-    SettingDef("smtp_username", "", label="SMTP username", group="Email (sending)"),
+    SettingDef("smtp_username", "", "private", label="SMTP username", group="Email (sending)"),
     SettingDef("smtp_password", "", "secret", "SMTP password / app password", group="Email (sending)",
                help="Use an app password, not your main password."),
-    SettingDef("from_address", "", label="From address", group="Email (sending)",
+    SettingDef("from_address", "", "private", label="From address", group="Email (sending)",
                help="Requests are sent from and replies come back to this address. A dedicated privacy alias is ideal."),
-    SettingDef("from_name", "", label="From name", group="Email (sending)"),
+    SettingDef("from_name", "", "private", label="From name", group="Email (sending)"),
     # Incoming mail
     SettingDef("imap_host", "", label="IMAP host", group="Email (reading replies)", help="e.g. imap.gmail.com"),
     SettingDef("imap_port", 993, "int", "IMAP port", group="Email (reading replies)"),
-    SettingDef("imap_username", "", label="IMAP username", group="Email (reading replies)"),
+    SettingDef("imap_username", "", "private", label="IMAP username", group="Email (reading replies)"),
     SettingDef("imap_password", "", "secret", "IMAP password / app password", group="Email (reading replies)"),
     SettingDef("imap_folder", "INBOX", label="Folder to watch", group="Email (reading replies)"),
+    # Per-broker addresses
+    SettingDef("alias_mode", "plus", "choice", "Give each broker its own address", group="Per-broker addresses",
+               choices=("plus", "catchall", "off"),
+               help="plus: you+dc-spokeo-1@gmail.com (works with Gmail, Outlook, iCloud, Fastmail…). catchall: dc-spokeo-1@yourdomain. off: your plain address."),
+    SettingDef("alias_domain", "", "private", label="Catch-all domain", group="Per-broker addresses",
+               help="Only for catchall mode: a domain whose catch-all delivers to your connected mailbox."),
+    # Sign-in apps (OAuth clients)
+    SettingDef("google_client_id", "", label="Google OAuth client ID", group="Sign-in apps"),
+    SettingDef("google_client_secret", "", "secret", "Google OAuth client secret", group="Sign-in apps"),
+    SettingDef("microsoft_client_id", "", label="Microsoft application (client) ID", group="Sign-in apps"),
+    SettingDef("microsoft_client_secret", "", "secret", "Microsoft client secret value", group="Sign-in apps"),
     # Removal engine
     SettingDef("auto_approve", False, "bool", "Queue new email requests immediately", group="Removal requests",
                help="Off: new requests wait as drafts until you press Send."),
@@ -65,13 +76,13 @@ DEFS: list[SettingDef] = [
     SettingDef("datagov_api_key", "", "secret", "api.data.gov key (FTC complaint data)", group="Spam blocking",
                help="Free at https://api.data.gov/signup/"),
     # Notifications
-    SettingDef("notify_email", "", label="Send alerts to", group="Notifications", help="Your own address, for digests of new findings."),
+    SettingDef("notify_email", "", "private", label="Send alerts to", group="Notifications", help="Your own address, for digests of new findings."),
     SettingDef("ntfy_url", "", label="ntfy topic URL", group="Notifications", help="e.g. https://ntfy.sh/your-secret-topic"),
 ]
 
 DEF_BY_KEY = {d.key: d for d in DEFS}
 # Internal keys that are not shown on the settings page.
-INTERNAL_KEYS = {"imap_uidvalidity", "imap_last_uid", "last_tick_at", "last_digest_at", "checklist_done"}
+INTERNAL_KEYS = {"imap_uidvalidity", "imap_last_uid", "last_tick_at", "last_digest_at", "checklist_done", "mail_account_id"}
 
 
 def _coerce(defn: SettingDef | None, raw: str | None) -> Any:
@@ -105,7 +116,7 @@ class Settings:
 
     def set(self, key: str, value: Any) -> None:
         defn = DEF_BY_KEY.get(key)
-        secret = bool(defn and defn.kind == "secret")
+        secret = bool(defn and defn.kind in ("secret", "private"))
         if isinstance(value, bool):
             raw = "true" if value else "false"
         else:

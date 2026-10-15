@@ -67,3 +67,26 @@
   }
   if (country) { country.addEventListener("change", syncRegions); syncRegions(); }
 })();
+
+// Light / dark / system theme toggle. The server reads the same cookie, so there's no flash.
+(function () {
+  var btn = document.querySelector("[data-theme-toggle]");
+  if (!btn) return;
+  var order = ["", "light", "dark"];
+  var labels = { "": "Theme: match system", light: "Theme: light", dark: "Theme: dark" };
+  function current() { return document.documentElement.getAttribute("data-theme") || ""; }
+  function paint(t) {
+    // The icon itself is switched by CSS from the data-theme attribute.
+    btn.setAttribute("aria-label", labels[t]);
+    btn.setAttribute("title", labels[t] + " (click to change)");
+  }
+  paint(current());
+  btn.addEventListener("click", function () {
+    var next = order[(order.indexOf(current()) + 1) % order.length];
+    if (next) document.documentElement.setAttribute("data-theme", next);
+    else document.documentElement.removeAttribute("data-theme");
+    var secure = location.protocol === "https:" ? "; secure" : "";
+    document.cookie = "dc_theme=" + next + "; path=/; max-age=31536000; samesite=lax" + secure;
+    paint(next);
+  });
+})();

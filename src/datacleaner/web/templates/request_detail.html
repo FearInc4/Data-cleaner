@@ -4,10 +4,21 @@
 <div class="page-head">
   <div>
     <h1>{{ req.broker.name }} {{ status_badge(req.status) }}{% if req.paused %} <span class="badge">paused</span>{% endif %}</h1>
-    <p class="muted">For {{ req.profile.label }} · {{ law.short }} · reference <code>{{ req.reference }}</code> <button class="copy" data-copy="{{ req.reference }}">Copy</button></p>
+    <p class="muted">For {{ req.profile.label }} · {{ law.short }} · reference <code>{{ req.reference }}</code> <button type="button" class="copy" data-copy="{{ req.reference }}">Copy</button></p>
   </div>
   <a class="btn" href="/brokers/{{ req.broker.slug }}">Broker details</a>
 </div>
+
+{% if req.needs_review %}
+<div class="callout warn">
+  <strong>A reply needs your review.</strong> We couldn't confirm it really came from {{ req.broker.name }}, so nothing was changed automatically and follow-ups continue. Read it in the timeline below.
+  <form method="post" action="/requests/{{ req.id }}/action" class="actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="small" type="submit" name="action" value="reviewed">Reviewed, nothing to do</button>
+    <button class="small primary" type="submit" name="action" value="completed">It's genuine: mark removed</button>
+  </form>
+</div>
+{% endif %}
 
 {% if req.status == "draft" and preview %}
 <div class="card">
@@ -31,8 +42,8 @@
   {% if req.broker.notes %}<p class="muted">{{ req.broker.notes }}</p>{% endif %}
   <p>{{ method_badges(req.broker) }}</p>
   <div class="actions">
-    {% if search_link %}<a class="btn" href="{{ search_link }}" target="_blank" rel="noopener noreferrer">1. Find your listing ↗</a>{% endif %}
-    {% if req.broker.opt_out_url %}<a class="btn primary" href="{{ req.broker.opt_out_url }}" target="_blank" rel="noopener noreferrer">{{ "2. " if search_link }}Open the opt-out form ↗</a>{% endif %}
+    {% if search_link %}<a class="btn" href="{{ search_link|safe_url }}" target="_blank" rel="noopener noreferrer">1. Find your listing ↗</a>{% endif %}
+    {% if req.broker.opt_out_url %}<a class="btn primary" href="{{ req.broker.opt_out_url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ "2. " if search_link }}Open the opt-out form ↗</a>{% endif %}
     {% if assist and req.broker.opt_out_url %}
     <form method="post" action="/requests/{{ req.id }}/assist" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit" title="Opens a browser window with the form pre-filled">Open pre-filled in a browser</button></form>
     {% endif %}
@@ -41,10 +52,11 @@
   <table>
     {% set p = req.profile %}
     {% set a = p.current_address or {} %}
-    {% for label, value in [("Full name", p.short_name), ("First name", p.get("first_name")), ("Last name", p.get("last_name")), ("Email", p.contact_email), ("Phone", (p.phones or [""])[0]), ("Street", a.get("street")), ("City", a.get("city")), ("State", a.get("region")), ("ZIP", a.get("postal_code")), ("Listing URL", req.listing_url)] %}
-    {% if value %}<tr><th>{{ label }}</th><td class="mono">{{ value }}</td><td><button class="copy" data-copy="{{ value }}">Copy</button></td></tr>{% endif %}
+    {% for label, value in [("Full name", p.short_name), ("First name", p.get("first_name")), ("Last name", p.get("last_name")), ("Email", form_email), ("Phone", (p.phones or [""])[0]), ("Street", a.get("street")), ("City", a.get("city")), ("State", a.get("region")), ("ZIP", a.get("postal_code")), ("Listing URL", req.listing_url)] %}
+    {% if value %}<tr><th>{{ label }}</th><td class="mono">{{ value }}</td><td><button type="button" class="copy" data-copy="{{ value }}">Copy</button></td></tr>{% endif %}
     {% endfor %}
   </table>
+  {% if alias %}<p class="help">The email above is this broker's own address. Confirmation emails sent to it are matched to this request automatically. If the form rejects it, switch to your plain address in the Status panel.</p>{% endif %}
   <form method="post" action="/requests/{{ req.id }}/action" class="actions">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     {% if req.status == "awaiting_user" %}
@@ -63,7 +75,7 @@
   <h2>Complaint draft</h2>
   <p>This broker missed its legal deadline. Review the draft, then file it with the regulator (they require a human to submit).</p>
   <pre>{{ escalation.body }}</pre>
-  <button class="copy" data-copy="{{ escalation.body }}">Copy complaint text</button>
+  <button type="button" class="copy" data-copy="{{ escalation.body }}">Copy complaint text</button>
 </div>
 {% endif %}
 
@@ -83,8 +95,12 @@
     <h2>Status</h2>
     <table>
       <tr><th>Method</th><td>{{ req.method }}{% if req.to_address %} → <code>{{ req.to_address }}</code>{% endif %}</td></tr>
+      <tr><th>Your address for them</th><td>{% if alias %}<code class="alias">{{ alias }}</code> <button type="button" class="copy" data-copy="{{ alias }}">Copy</button>{% else %}{{ req.profile.contact_email or "-" }}{% endif %}
+        <form method="post" action="/requests/{{ req.id }}/action" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if alias %}<button class="small" type="submit" name="action" value="alias_off" title="Some forms reject + in addresses">Use plain address</button>
+        {% else %}<button class="small" type="submit" name="action" value="alias_on">Use a per-broker address</button>{% endif %}</form></td></tr>
       <tr><th>First sent</th><td>{{ req.first_sent_at|datetime or "-" }}</td></tr>
-      <tr><th>Legal deadline</th><td>{{ req.due_at|date or "-" }} ({{ law.deadline_days }} days)</td></tr>
+      <tr><th>Legal deadline</th><td>{% if req.due_at %}{{ req.due_at|date }} ({{ law.deadline_days }} days){% else %}{{ law.deadline_days }} days after it's sent{% endif %}</td></tr>
       <tr><th>Next follow-up</th><td>{{ req.next_action_at|datetime or "-" }}</td></tr>
       <tr><th>Follow-ups sent</th><td>{{ req.followup_count }}</td></tr>
       <tr><th>Last reply</th><td>{{ req.last_reply_at|datetime or "-" }}</td></tr>

@@ -5,8 +5,11 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from ... import app_state, oauth
+from ...mail.aliases import make_alias
 from ...mail.inbox import ImapSource
 from ...mail.smtp import MailNotConfigured, SmtpMailer
+from ...mail.transport import describe
 from ...models import User
 from ...scheduler import TickDeps, tick
 from ...settings import DEFS, Settings
@@ -20,13 +23,27 @@ SECRET_PLACEHOLDER = "••••••••"
 @router.get("")
 def settings_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     s = Settings(db)
+    cfg = app_state.get_config()
     groups: dict[str, list] = {}
     for d in DEFS:
         value = s.get(d.key)
         if d.kind == "secret":
             value = SECRET_PLACEHOLDER if value else ""
         groups.setdefault(d.group, []).append((d, value))
-    return render(request, db, "settings.html", groups=groups, last_tick=s.get("last_tick_at"))
+    base_url = cfg.base_url or str(request.base_url).rstrip("/")
+    apps = [{
+        "provider": p,
+        "configured": bool(oauth.credentials(p, s, cfg)),
+        "from_env": bool(getattr(cfg, f"{p.key}_client_id", None)),
+        "redirect_uri": oauth.redirect_uri(base_url, p),
+    } for p in oauth.PROVIDERS.values()]
+    mail = describe(db)
+    sample = None
+    if mail["email"]:
+        sample = make_alias(mail["email"], "spokeo", 1, mode=s.alias_mode or "plus", catchall_domain=s.alias_domain or None)
+    return render(request, db, "settings.html", groups=groups, last_tick=s.get("last_tick_at"), mail=mail, apps=apps,
+                  providers=[a["provider"] for a in apps if a["configured"]], sample_alias=sample, base_url=base_url,
+                  base_url_configured=bool(cfg.base_url))
 
 
 @router.post("")

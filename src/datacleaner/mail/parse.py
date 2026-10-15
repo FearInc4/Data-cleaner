@@ -37,6 +37,8 @@ class IncomingMessage:
     text: str
     links: list[str] = field(default_factory=list)
     headers: dict[str, str] = field(default_factory=dict)
+    # Every header value in original order, keyed by lower-case name.
+    raw_headers: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def from_domain(self) -> str:
@@ -122,7 +124,15 @@ def parse_message(raw: bytes, uid: str = "") -> IncomingMessage:
         text=text,
         links=uniq,
         headers={k: str(v) for k, v in msg.items()},
+        raw_headers=_ordered_headers(msg),
     )
+
+
+def _ordered_headers(msg) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for k, v in msg.items():
+        out.setdefault(k.lower(), []).append(str(v))
+    return out
 
 
 # --- classification ----------------------------------------------------------

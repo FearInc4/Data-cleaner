@@ -4,7 +4,7 @@ import os
 import threading
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ...brokers import render_search_url, search_values_for
@@ -35,7 +35,8 @@ def list_requests(request: Request, status: str = "", profile_id: int | None = N
     if profile:
         stmt = stmt.where(RemovalRequest.profile_id == profile.id)
     if status == "needs_you":
-        stmt = stmt.where(RemovalRequest.status.in_(list(RequestStatus.NEEDS_HUMAN | {RequestStatus.NEEDS_VERIFICATION})))
+        stmt = stmt.where(or_(RemovalRequest.status.in_(list(RequestStatus.NEEDS_HUMAN | {RequestStatus.NEEDS_VERIFICATION})),
+                              RemovalRequest.needs_review.is_(True)))
     elif status == "open":
         stmt = stmt.where(RemovalRequest.status.in_(list(RequestStatus.OPEN)))
     elif status:
@@ -111,6 +112,7 @@ def _get(db: Session, request_id: int) -> RemovalRequest:
 def request_detail(request_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     req = _get(db, request_id)
     settings = Settings(db)
+    alias = engine.ensure_alias(db, req)
     preview = None
     if req.status == RequestStatus.DRAFT and req.method == "email":
         preview = engine.preview_initial(req, settings, today=utcnow())
@@ -118,7 +120,8 @@ def request_detail(request_id: int, request: Request, db: Session = Depends(get_
     search_link = render_search_url(req.broker.search_url, search_values_for(req.profile)) if req.broker.search_url else None
     escalation = next((e for e in reversed(req.events) if e.type == "escalation_ready"), None)
     return render(request, db, "request_detail.html", req=req, preview=preview, law=law, search_link=search_link,
-                  escalation=escalation, assist=_assist_available(), statuses=RequestStatus.ALL)
+                  escalation=escalation, assist=_assist_available(), statuses=RequestStatus.ALL, alias=alias,
+                  form_email=alias or req.profile.contact_email)
 
 
 @router.post("/{request_id}/action")
@@ -156,6 +159,16 @@ def request_action(request_id: int, request: Request, action: str = Form(...), n
             engine.add_event(db, req, "note", "Listing URL updated", now=now)
         elif action == "status" and status in RequestStatus.ALL:
             engine.set_status(db, req, status, now=now, summary=note or f"Status set to {status.replace('_', ' ')}")
+        elif action == "reviewed":
+            req.needs_review = False
+            engine.add_event(db, req, "note", note.strip()[:500] or "Reply reviewed", now=now)
+        elif action == "alias_off":
+            req.reply_alias = ""
+            engine.add_event(db, req, "note", "Using your plain address for this broker", now=now)
+        elif action == "alias_on":
+            req.reply_alias = None
+            engine.ensure_alias(db, req)
+            engine.add_event(db, req, "note", "Using a per-broker address for this broker", now=now)
         elif action == "retry":
             req.status = RequestStatus.DRAFT if req.method == "email" else RequestStatus.AWAITING_USER
             engine.add_event(db, req, "status", "Reset to retry", now=now)
@@ -178,7 +191,7 @@ def request_assist(request_id: int, request: Request, db: Session = Depends(get_
     from ...assist.formfill import run_assisted, values_for
 
     url = req.broker.opt_out_url
-    values = values_for(req.profile, req.listing_url)
+    values = values_for(req.profile, req.listing_url, email=engine.ensure_alias(db, req))
 
     def worker():
         try:

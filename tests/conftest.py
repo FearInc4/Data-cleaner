@@ -10,9 +10,25 @@ from datacleaner.db import new_session
 from datacleaner.models import Profile, Relation
 
 
+FAKE_DNS = {"rebind.example": ["10.0.0.7"], "metadata.example": ["169.254.169.254"]}
+
+
+@pytest.fixture(autouse=True)
+def fake_dns(monkeypatch):
+    """No real DNS in tests: *.example and *.com resolve to a public documentation address."""
+    from datacleaner import net
+
+    def resolve(host):
+        if host in FAKE_DNS:
+            return FAKE_DNS[host]
+        return ["93.184.216.34"]
+
+    monkeypatch.setattr(net, "RESOLVER", resolve)
+
+
 @pytest.fixture()
 def config(tmp_path):
-    cfg = Config(data_dir=tmp_path, scheduler_enabled=False)
+    cfg = Config(data_dir=tmp_path, scheduler_enabled=False, allowed_hosts=["testserver"])
     app_state.init(cfg)
     return cfg
 

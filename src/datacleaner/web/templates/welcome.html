@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_macros.html" import provider_buttons, mailbox_name %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Let's get your data removed</h1>
+    <p class="muted">Four steps, about ten minutes. After that, Data Cleaner keeps working on its own.</p></div>
+  <a class="btn" href="/">Skip to dashboard</a>
+</div>
+
+<ol class="stepper">
+  {% for s in steps %}
+  <li class="{{ 'done' if s.done }} {{ 'current' if current and current.n == s.n }}">
+    <span class="num">{{ "✓" if s.done else s.n }}</span>
+    <div><h3>{{ s.title }}</h3><p>{{ s.why }}</p></div>
+    <div>{% if s.done %}<span class="badge ok">done</span>{% endif %}</div>
+  </li>
+  {% endfor %}
+</ol>
+
+{% if current %}
+<div class="card hero">
+  {% if current.n == 1 %}
+    <h2>Connect the email account you'll use</h2>
+    <p>Data Cleaner sends requests <strong>from your own address</strong>, which brokers take more seriously, and reads their replies so it can confirm removals, click confirmation links and stop following up. Each broker gets its own address, like <code class="alias">you+dc-spokeo-1@gmail.com</code>, so every reply and every leak can be traced.</p>
+    {% if providers %}
+      {{ provider_buttons(providers, "connect", "Connect") }}
+      <p class="help">You'll be asked to allow "send email" and "read email". Data Cleaner only acts on replies from brokers; nothing leaves this machine.</p>
+    {% else %}
+      <p class="callout">Google / Microsoft sign-in isn't set up on this install yet. <a href="/settings#sign-in-apps">Set it up</a> (5 minutes), or use any email provider with an app password.</p>
+    {% endif %}
+    <p><a href="/settings#email">Use another provider (SMTP / IMAP) →</a></p>
+  {% elif current.n == 2 %}
+    <h2>Tell us who you are</h2>
+    <p>Enter the details brokers publish: your name, the emails and phone numbers you use, and where you've lived. The more you add, the more listings we can find and remove.</p>
+    <a class="btn primary" href="/profiles/new">Add my details</a>
+  {% elif current.n == 3 %}
+    <h2>Pick the brokers</h2>
+    <p>The most harmful people-search sites are pre-selected.</p>
+    {% if show_drop %}<p class="callout">You're in California: also file one request at <a href="{{ drop_url|safe_url }}" target="_blank" rel="noopener">DROP</a> to reach every registered broker at once.</p>{% endif %}
+    <a class="btn primary" href="/requests/new">Choose brokers</a>
+  {% elif current.n == 4 %}
+    <h2>Review and send</h2>
+    <p>You have {{ drafts }} email request(s) ready. Open one to read exactly what will be sent, then send them all.</p>
+    <a class="btn primary" href="/requests?status=draft">Review drafts</a>
+  {% endif %}
+</div>
+{% else %}
+<div class="card hero">
+  <h2>You're all set 🎉</h2>
+  <p>Requests are out. Data Cleaner follows up on its own and tells you when something needs you. Next: <a href="/scan">scan for listings</a>, <a href="/breaches">check breaches</a>, and run through <a href="/spam">Stop spam</a>.</p>
+  <a class="btn primary" href="/">Go to dashboard</a>
+</div>
+{% endif %}
+{% endblock %}

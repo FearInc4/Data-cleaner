@@ -79,7 +79,7 @@ def cmd_assist(args) -> int:
         if not req or not req.broker.opt_out_url:
             print("No such request, or the broker has no opt-out form", file=sys.stderr)
             return 1
-        url, values = req.broker.opt_out_url, values_for(req.profile, req.listing_url)
+        url, values = req.broker.opt_out_url, values_for(req.profile, req.listing_url, email=engine.ensure_alias(session, req))
     result = run_assisted(url, values, headless=False)
     print(f"Filled {result['filled']} field(s).")
     answer = input("Did you submit the form? [y/N] ").strip().lower()
@@ -92,6 +92,9 @@ def cmd_assist(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    from . import logredact
+
+    logredact.install()
     parser = argparse.ArgumentParser(prog="datacleaner", description="Find and remove your personal data from the internet.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 

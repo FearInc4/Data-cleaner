@@ -20,6 +20,10 @@ The paid services (DeleteMe, Optery, Incogni, Kanary) do roughly this for $100â€
 | Dark web / breach | **Breach-intel APIs + public paste monitoring** | Aggregators (HIBP, XposedOrNot, LeakCheck) already crawl leak forums and markets. Querying them gives the same findings without the app downloading stolen data, touching Tor markets, or risking illegal content. |
 | Stack | Python 3.12+, FastAPI, SQLAlchemy + SQLite, Jinja templates, stdlib SMTP/IMAP, optional Playwright | One process, one container, no JS build step. Python has the best scraping and browser-automation ecosystem. SQLite means zero-ops backups (one file). |
 | License | AGPL-3.0 for code | Keeps hosted forks open. Anyone who runs a modified version as a public service has to share their changes. |
+| Mail transport | **Gmail API / Microsoft Graph via OAuth**, with SMTP/IMAP as fallback | One-click setup with no app passwords. Least-privilege scopes, revocable. Raw MIME keeps threading headers intact. |
+| OAuth apps | **One OAuth client per install** (the owner's own Google Cloud / Entra app) | No central developer account that could be compromised, sold, or have to pass Google's restricted-scope security assessment (CASA) for everyone. Costs each self-hoster about 5 minutes. |
+| Reply tracking | **Per-broker plus-address aliases** + thread headers + reference token | Matches even form-generated confirmation emails, and attributes leaks to the broker that sold the address. |
+| Trust in replies | Only thread-matched or DMARC-authenticated replies change state | Stops spoofed "we deleted your data" emails from silencing follow-ups. |
 
 ---
 
@@ -205,6 +209,14 @@ search-URL patterns, the FTC DNC API field names, XposedOrNot/LeakCheck response
 their official SDKs), and psbdmp. All parsers are defensive, and failures show up in the UI rather than
 crashing. **First task for v0.2: run each integration once against the real service.**
 
+### Phase 1.5: Accounts, mail, security (built)
+- [x] Sign in with Google / Microsoft (OIDC + PKCE + nonce, JWKS-verified, subject-based identity), password optional
+- [x] Connected Gmail / Outlook mailboxes for sending and reading, with token refresh and reconnect prompts
+- [x] Per-broker aliases (plus or catch-all), alias-based reply matching, leak attribution
+- [x] Guided onboarding, redesigned Settings, Account & security page, light/dark/system theme
+- [x] Security audit: setup token, session revocation/expiry, Host allow-list, SSRF guard, reply authentication, log redaction, mailto hardening, no-store, erase-everything
+- [x] Supply chain: hash-pinned lock file, digest-pinned base image, read-only non-root container, CI pip-audit + bandit + Trivy, Dependabot
+
 ### Phase 2: Self-hosting for everyone
 - [x] Dockerfile + docker-compose with SearXNG, healthcheck, volume for `/data`
 - [ ] One-line install script, Raspberry Pi (arm64) image, Unraid/TrueNAS/CasaOS templates
@@ -223,7 +235,22 @@ crashing. **First task for v0.2: run each integration once against the real serv
 
 ---
 
-## 11. Open questions for the project owner
+## 11. Recommended next steps
+
+Highest impact first:
+
+1. **Run every integration against the real services once** (Gmail, Graph, XposedOrNot, LeakCheck, FTC, broker search pages) and fix any response-shape surprises. The test suite fakes them all.
+2. **Browser extension for form filling.** Most people-search opt-outs are web forms. A small WebExtension that reads the "details to paste" for the current request and fills the broker's form would make the biggest single dent in user effort, and it works from any web-based install (the Playwright helper only works on a desktop).
+3. **One-click installers:** a Raspberry Pi / NAS image (Umbrel, CasaOS, Unraid, TrueNAS apps), and a desktop bundle (Tauri) that runs locally with no Docker. Non-technical people won't run `docker compose`.
+4. **Encrypted backup and restore** (passphrase-protected export) and an upgrade path with Alembic.
+5. **Distroless or Wolfi base image** to remove the Debian packages that carry unfixed CVEs.
+6. **Survivor-safety mode** with a DV advocacy group: a quick-exit button, a neutral app name and favicon, no email digests, and Address Confidentiality Program guidance per state.
+7. **Broker catalog as a shared data repo** with a weekly CI job that checks every opt-out URL and flags dead or changed ones. Optional anonymous response-time stats per broker.
+8. **Alias services:** SimpleLogin / addy.io API integration for real per-broker aliases (not just `+` tags), so a leaking broker's address can be switched off.
+9. **Accessibility and translations:** a WCAG 2.2 AA pass, and Spanish/French UI and letters.
+10. **Lawyer review** of every letter template, and a public hosted instance only after that (it would need Google CASA verification, a privacy policy, and probably a nonprofit).
+
+## 12. Open questions for the project owner
 
 1. **Name/branding.** Keep "Data Cleaner" or pick something else for the public release?
 2. **Multi-user hosting.** Do you want to run a public instance yourself eventually? That changes the threat model a lot: it needs legal review, a privacy policy, and probably a nonprofit wrapper.

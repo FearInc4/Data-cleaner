@@ -14,7 +14,8 @@ RANGE_URL = "https://api.pwnedpasswords.com/range/{prefix}"
 
 
 def pwned_count(password: str, client: httpx.Client | None = None) -> int:
-    digest = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()  # noqa: S324 - protocol requires SHA-1
+    # The Pwned Passwords range API is defined over SHA-1; this is a lookup key, not password storage.
+    digest = hashlib.sha1(password.encode("utf-8"), usedforsecurity=False).hexdigest().upper()
     prefix, suffix = digest[:5], digest[5:]
     own = client is None
     client = client or httpx.Client(timeout=20)

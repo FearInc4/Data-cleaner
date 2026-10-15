@@ -32,11 +32,11 @@ FIELD_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
-def values_for(profile: Profile, listing_url: str | None) -> dict[str, str]:
+def values_for(profile: Profile, listing_url: str | None, *, email: str | None = None) -> dict[str, str]:
     addr = profile.current_address or {}
     state = (addr.get("region") or profile.region or "").upper()
     vals = {
-        "email": profile.contact_email or "",
+        "email": email or profile.contact_email or "",
         "first_name": profile.get("first_name") or "",
         "middle_name": profile.get("middle_name") or "",
         "last_name": profile.get("last_name") or "",

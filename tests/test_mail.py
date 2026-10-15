@@ -93,13 +93,13 @@ def _sent_request(session, profile, now, slug="mylife"):
 def test_match_by_thread_reference_and_domain(session, profile, now):
     req, msg_id = _sent_request(session, profile, now)
     by_thread = parse_message(build("Re: hi", "x", in_reply_to=msg_id, sender="someone@other.example"))
-    assert match_request(session, by_thread).id == req.id
+    assert match_request(session, by_thread) == (req, "thread")
     by_ref = parse_message(build(f"Re: [Ref {req.reference}]", "x", sender="someone@other.example"))
-    assert match_request(session, by_ref).id == req.id
+    assert match_request(session, by_ref) == (req, "reference")
     by_domain = parse_message(build("Your request", "x", sender="noreply@mylife.com"))
-    assert match_request(session, by_domain).id == req.id
+    assert match_request(session, by_domain) == (req, "domain")
     stranger = parse_message(build("Hello", "x", sender="news@shop.example"))
-    assert match_request(session, stranger) is None
+    assert match_request(session, stranger) == (None, "")
 
 
 def test_inbox_completes_request(session, profile, now):
