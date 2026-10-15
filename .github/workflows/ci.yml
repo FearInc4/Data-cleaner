@@ -63,7 +63,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:8080/healthz && exit 0; sleep 1; done
           docker logs dc; exit 1
       - name: Scan image for fixable HIGH/CRITICAL vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: datacleaner:ci
           severity: HIGH,CRITICAL
