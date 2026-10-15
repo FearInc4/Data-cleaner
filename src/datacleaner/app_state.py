@@ -14,12 +14,32 @@ log = logging.getLogger(__name__)
 _config: Config | None = None
 
 
+class DataDirError(RuntimeError):
+    """The data folder can't be written; the message says how to fix it."""
+
+
+def _check_data_dir(config: Config) -> None:
+    try:
+        config.ensure_dirs()
+        probe = config.data_dir / ".write-test"
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError as exc:
+        uid, gid = getattr(os, "getuid", lambda: "?")(), getattr(os, "getgid", lambda: "?")()
+        raise DataDirError(
+            f"Data Cleaner can't write to its data folder {config.data_dir} ({exc.strerror}). "
+            f"It runs as user {uid}:{gid}. Give that user the folder: for a bind mount, run "
+            f"`sudo chown -R {uid}:{gid} <the host folder>`. A named Docker volume works out of the box "
+            "with the image's default user (10001)."
+        ) from None
+
+
 def init(config: Config | None = None, *, sync_catalog: bool = True) -> Config:
     global _config
     config = config or Config()
     # Database, WAL files and key file hold personal data: owner-only by default.
     os.umask(0o077)
-    config.ensure_dirs()
+    _check_data_dir(config)
     if config.secret_key:
         vault = Vault.from_secret(config.secret_key)
     else:

@@ -33,7 +33,8 @@ def cmd_serve(args) -> int:
         logging.getLogger(__name__).warning(
             "Listening on %s. Anyone who can reach this address sees the login page. "
             "Put it behind HTTPS (reverse proxy / Tailscale) and set DATACLEANER_SECURE_COOKIES=1.", config.host)
-    uvicorn.run(app, host=config.host, port=config.port, log_level="info", proxy_headers=True)
+    uvicorn.run(app, host=config.host, port=config.port, log_level="info", proxy_headers=True,
+                forwarded_allow_ips=config.trusted_proxies)
     return 0
 
 
@@ -121,7 +122,13 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_assist)
 
     args = parser.parse_args(argv)
-    return args.fn(args)
+    from .app_state import DataDirError
+
+    try:
+        return args.fn(args)
+    except DataDirError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
