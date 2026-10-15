@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import priority, method_badges %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ priority(broker.priority) }} {{ broker.name }}</h1>
+    <p class="muted">{{ broker.category|label }}{% if broker.website %} · <a href="{{ broker.website }}" target="_blank" rel="noopener noreferrer">{{ broker.website|host }}</a>{% endif %}{% if broker.parent %} · owned by {{ broker.parent }}{% endif %}</p>
+  </div>
+  {% if profile %}
+  <form method="post" action="/requests/create">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="profile_id" value="{{ profile.id }}">
+    <input type="hidden" name="broker_id" value="{{ broker.id }}">
+    <button class="primary" type="submit">Create removal request for {{ profile.label }}</button>
+  </form>
+  {% endif %}
+</div>
+{% if not broker.verified %}<div class="callout warn">This entry's opt-out link hasn't been confirmed by a contributor yet. If it's wrong, please open an issue or PR.</div>{% endif %}
+<div class="grid-2">
+  <div class="card">
+    <h2>How to remove</h2>
+    <p>{{ method_badges(broker) }}</p>
+    {% if broker.privacy_email %}<p>Privacy email: <code>{{ broker.privacy_email }}</code> <button class="copy" data-copy="{{ broker.privacy_email }}">Copy</button></p>{% endif %}
+    {% if broker.opt_out_url %}<p><a class="btn" href="{{ broker.opt_out_url }}" target="_blank" rel="noopener noreferrer">Open opt-out page ↗</a></p>{% endif %}
+    {% if search_link %}<p><a href="{{ search_link }}" target="_blank" rel="noopener noreferrer">Search this site for {{ profile.short_name }} ↗</a></p>{% endif %}
+    {% if broker.steps %}<h3>Steps</h3><ol class="steps">{% for s in broker.steps %}<li>{{ s }}</li>{% endfor %}</ol>{% endif %}
+    {% if broker.notes %}<p class="muted">{{ broker.notes }}</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Details</h2>
+    <table>
+      <tr><th>Regions</th><td>{{ broker.regions|join(", ") or "-" }}</td></tr>
+      <tr><th>Domains</th><td>{{ broker.domains|join(", ") or "-" }}</td></tr>
+      <tr><th>Also covers</th><td>{{ broker.owns|join(", ") or "-" }}</td></tr>
+      <tr><th>State registries</th><td>{{ broker.registries|join(", ") or "-" }}</td></tr>
+      <tr><th>Source</th><td>{{ broker.source|label }}</td></tr>
+    </table>
+  </div>
+</div>
+{% endblock %}

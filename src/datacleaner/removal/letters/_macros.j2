@@ -1,0 +1,34 @@
+{% macro identity(p) -%}
+Name: {{ p.full_name }}
+{% if p.aliases %}Other names: {{ p.aliases | join(", ") }}
+{% endif %}
+{% for e in p.emails %}Email: {{ e }}
+{% endfor %}
+{% for ph in p.phones %}Phone: {{ ph }}
+{% endfor %}
+{% for a in p.addresses %}{{ "Current address" if a.current else "Previous address" }}: {{ a.oneline }}
+{% endfor %}
+{% if p.birth_date %}Date of birth: {{ p.birth_date }}
+{% endif %}
+{%- endmacro %}
+
+{% macro listing(listing_url) -%}
+{% if listing_url %}
+
+My record on your site: {{ listing_url }}
+{% endif %}
+{%- endmacro %}
+
+{% macro agent_line(agent) -%}
+{% if agent %}
+I am writing as the authorized agent of {{ agent.subject_name }}. Their signed authorization is available on request{% if agent.law_ref %} ({{ agent.law_ref }}){% endif %}.
+
+{% endif %}
+{%- endmacro %}
+
+{% macro signoff(sender, reference) -%}
+Please reply to this email and keep "{{ reference }}" in the subject line so I can match your response.
+
+Sincerely,
+{{ sender }}
+{%- endmacro %}

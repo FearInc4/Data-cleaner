@@ -1,0 +1,18 @@
+{% import "_macros.j2" as m %}
+To the privacy team at {{ broker.name }}:
+
+{{ m.agent_line(agent) }}I am a resident of {{ law.region_label }}. Under the {{ law.title }} ({{ law.citation }}), I am exercising my rights to:
+
+1. Delete the personal data you hold about me.
+2. Opt out of the sale of my personal data, targeted advertising, and profiling.
+3. Confirm whether you process my personal data.
+
+Use the details below only to find and delete my records:
+
+{{ m.identity(person) }}{{ m.listing(listing_url) }}
+
+The law requires you to respond within 45 days of receiving this request, which is by {{ deadline }}. Requests to opt out cannot require me to create an account. If you decline any part of this request, please explain why and tell me how to appeal, as the law requires.
+
+Please confirm in writing once you have deleted my data and opted me out.
+
+{{ m.signoff(sender, reference) }}

@@ -1,0 +1,39 @@
+# Self-host Data Cleaner with a private SearXNG search backend.
+#
+#   docker compose up -d
+#   open http://localhost:8080
+#
+# Only port 8080 on localhost is exposed. For access from other devices, use
+# Tailscale or a reverse proxy with HTTPS (see README → Remote access).
+services:
+  datacleaner:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      DATACLEANER_SEARXNG_URL: http://searxng:8080
+      # Keep the encryption key out of the data volume (recommended for backups):
+      # DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY}
+      # Set when serving over HTTPS:
+      # DATACLEANER_SECURE_COOKIES: "1"
+    depends_on:
+      - searxng
+
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    # No published ports: only Data Cleaner can reach it.
+    volumes:
+      - ./deploy/searxng:/etc/searxng:rw
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-to-a-long-random-string}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID

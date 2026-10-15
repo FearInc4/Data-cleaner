@@ -1,0 +1,20 @@
+{% import "_macros.j2" as m %}
+{% set reg = "UK GDPR" if law.extra.get("uk") else "GDPR" %}
+To the Data Protection Officer at {{ broker.name }}:
+
+{{ m.agent_line(agent) }}I am writing under the {{ law.title }} to exercise my rights as a data subject.
+
+1. Erasure (Article 17 {{ reg }}): erase all personal data concerning me without undue delay.
+2. Objection to direct marketing (Article 21(2) and (3)): I object to any processing of my personal data for direct marketing, including profiling. This objection is absolute, so the data must no longer be processed for that purpose.
+3. Access (Article 15): before you erase it, confirm whether you process my personal data and tell me which categories you hold, where you got them (Article 15(1)(g)), and who you disclosed them to.
+4. Notification of recipients (Article 19): tell every recipient you disclosed my data to about this erasure, and tell me who they are.
+
+Use the details below only to identify me:
+
+{{ m.identity(person) }}{{ m.listing(listing_url) }}
+
+Under Article 12(3), you must respond within one month of receiving this request, which is by {{ deadline }}. This request is free of charge (Article 12(5)). You may only ask for more information if you have reasonable doubts about my identity (Article 12(6)).
+
+If I don't receive a satisfactory response, I will complain to {{ law.regulators[0].name }}.
+
+{{ m.signoff(sender, reference) }}

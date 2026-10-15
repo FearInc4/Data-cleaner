@@ -1,0 +1,16 @@
+AUTHORIZATION OF AGENT FOR PRIVACY REQUESTS
+
+I, {{ subject_name }}, authorize {{ agent_name }} to act as my authorized agent and to submit, on my behalf, requests to delete, opt out of the sale or sharing of, correct, and access my personal information to any business, including data brokers and people-search websites.
+
+This authorization is given under the California Consumer Privacy Act (Cal. Civ. Code § 1798.135 and Cal. Code Regs. tit. 11, § 7063), the comparable provisions of other U.S. state privacy laws, Article 80 GDPR where applicable, and any other law that permits a person to act through an agent.
+
+The agent may use the following contact information for me in those requests:
+{% for e in emails %}  Email: {{ e }}
+{% endfor %}{% for p in phones %}  Phone: {{ p }}
+{% endfor %}
+
+This authorization remains in effect until I revoke it in writing.
+
+Signature: _______________________________     Date: ____________
+
+Printed name: {{ subject_name }}

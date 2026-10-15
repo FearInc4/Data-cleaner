@@ -1,0 +1,13 @@
+{% import "_macros.j2" as m %}
+To the privacy team at {{ broker.name }}:
+
+Final notice for my request {{ reference }}, sent {{ original_date }}.
+
+You were required to respond by {{ deadline }}{% if law.citation %} under the {{ law.short }} ({{ law.citation }}){% endif %}. I have not received confirmation that you have deleted my personal information and stopped selling or sharing it.
+
+If I don't receive confirmation within 7 days, I will file a complaint with {% for r in law.regulators %}{{ r.name }}{{ " and " if not loop.last }}{% endfor %}{% if not law.regulators %}the relevant regulator{% endif %}, attaching this correspondence.
+
+{{ m.signoff(sender, reference) }}
+
+----- Original request ({{ original_date }}) -----
+{{ original_body }}

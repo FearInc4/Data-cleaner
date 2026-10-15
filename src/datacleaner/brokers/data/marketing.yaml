@@ -1,0 +1,203 @@
+# Marketing data brokers, identity/risk data companies, and international
+# people-search sites. These rarely show you a public "listing", so the
+# right move is a statutory deletion/opt-out request whether or not a scan
+# finds you.
+
+- slug: acxiom
+  name: Acxiom
+  website: https://www.acxiom.com
+  domains: [acxiom.com]
+  category: marketing
+  regions: ["*"]
+  priority: 2
+  opt_out_url: https://www.acxiom.com/optout/
+  methods: [form, phone]
+  requires: [email_verification]
+  steps:
+    - US residents use the US Consumer Opt Out form.
+    - France, Italy and Spain have localized portals (acxiom.com/privacy/fr, /it, /es); Germany, Austria, Switzerland and India can email Datenschutz@acxiom.com.
+    - Other international requests go through Acxiom's Consumer International Rights Portal.
+  notes: One of the largest marketing data brokers. Phone (877) 774-2094.
+
+- slug: acxiom-dach
+  name: Acxiom (Germany / Austria / Switzerland)
+  website: https://www.acxiom.de
+  domains: [acxiom.de, acxiom.com]
+  category: marketing
+  regions: [EU, CH]
+  priority: 2
+  privacy_email: Datenschutz@acxiom.com
+  methods: [email]
+  requires: []
+
+- slug: epsilon
+  name: Epsilon
+  website: https://www.epsilon.com
+  domains: [epsilon.com]
+  category: marketing
+  regions: ["*"]
+  priority: 2
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.epsilon.com/us/consumer-preference-center
+  methods: [form, mail]
+  requires: []
+  notes: Owned by Publicis. Large compiler of purchase and demographic data.
+
+- slug: liveramp
+  name: LiveRamp
+  website: https://liveramp.com
+  domains: [liveramp.com]
+  category: marketing
+  regions: ["*"]
+  priority: 3
+  opt_out_url: https://liveramp.com/opt_out/
+  methods: [form]
+  requires: [email_verification]
+
+- slug: lexisnexis
+  name: LexisNexis Risk Solutions
+  website: https://risk.lexisnexis.com
+  domains: [lexisnexis.com]
+  category: risk_identity
+  regions: [US]
+  priority: 2
+  opt_out_url: https://optout.lexisnexis.com/
+  methods: [form, mail]
+  requires: []
+  notes: Opt-out from LexisNexis' non-FCRA people-search products (Accurint etc.). Request your consumer file at consumer.risk.lexisnexis.com to see what they hold.
+
+- slug: experian-marketing
+  name: Experian Marketing Services
+  website: https://www.experian.com
+  domains: [experian.com]
+  category: marketing
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.experian.com/privacy/opting_out
+  methods: [form, mail]
+  requires: []
+  notes: Separate from your Experian credit file. Use optoutprescreen.com for prescreened credit offers.
+
+- slug: experian-uk-marketing
+  name: Experian UK (marketing)
+  website: https://www.experian.co.uk
+  domains: [experian.co.uk]
+  category: marketing
+  regions: [UK]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.experian.co.uk/legal/privacy-statement
+  methods: [form]
+  requires: []
+
+- slug: equifax-marketing
+  name: Equifax (marketing / IXI)
+  website: https://www.equifax.com
+  domains: [equifax.com]
+  category: marketing
+  regions: [US]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.equifax.com/personal/privacy/
+  methods: [form]
+  requires: []
+
+- slug: transunion-marketing
+  name: TransUnion (marketing / Neustar)
+  website: https://www.transunion.com
+  domains: [transunion.com, neustar.biz]
+  category: marketing
+  regions: [US]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.transunion.com/consumer-privacy
+  methods: [form]
+  requires: []
+
+- slug: corelogic
+  name: CoreLogic (Cotality)
+  website: https://www.corelogic.com
+  domains: [corelogic.com, cotality.com]
+  category: risk_identity
+  regions: [US]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.corelogic.com/privacy-center/
+  methods: [form]
+  requires: []
+  notes: Property, mortgage and tenant-screening data.
+
+- slug: data-axle
+  name: Data Axle
+  website: https://www.data-axle.com
+  domains: [data-axle.com]
+  category: marketing
+  regions: [US]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.data-axle.com/our-privacy-policy/
+  methods: [form]
+  requires: []
+  notes: Formerly Infogroup; compiles consumer and business mailing lists.
+
+- slug: peopledatalabs
+  name: People Data Labs
+  website: https://www.peopledatalabs.com
+  domains: [peopledatalabs.com]
+  category: b2b
+  regions: ["*"]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.peopledatalabs.com/privacy-policy
+  methods: [form]
+  requires: []
+
+- slug: apollo
+  name: Apollo.io
+  website: https://www.apollo.io
+  domains: [apollo.io]
+  category: b2b
+  regions: ["*"]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.apollo.io/privacy-policy/remove
+  methods: [form]
+  requires: [email_verification]
+
+- slug: rocketreach
+  name: RocketReach
+  website: https://rocketreach.co
+  domains: [rocketreach.co]
+  category: b2b
+  regions: ["*"]
+  priority: 3
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://rocketreach.co/privacy
+  methods: [form]
+  requires: []
+
+- slug: 192com
+  name: 192.com
+  website: https://www.192.com
+  domains: [192.com]
+  category: people_search
+  regions: [UK]
+  priority: 1
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.192.com/misc/contact/
+  methods: [form]
+  requires: [profile_url]
+  notes: Largest UK people-search site; most data comes from the open electoral register. Also opt out of the open register via your local council.
+
+- slug: canada411
+  name: Canada411
+  website: https://www.canada411.ca
+  domains: [canada411.ca]
+  category: people_search
+  regions: [CA]
+  priority: 1
+  verified: false  # link not yet confirmed by a contributor
+  opt_out_url: https://www.canada411.ca/
+  methods: [form]
+  requires: [profile_url]
+  notes: Use the "remove listing" link on your listing page. Unlisted numbers via your phone carrier also stop it reappearing.

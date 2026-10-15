@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Stop the spam</h1>
+    <p class="muted">Spam calls, texts and email are fed by data brokers. Removals cut the supply; these tools block what still gets through.</p></div>
+</div>
+
+<div class="card" id="checklist">
+  <h2>One-time setup{% if profile %} for {{ COUNTRY_NAMES.get(profile.country, profile.country) }}{% endif %}</h2>
+  <ul class="checklist">
+    {% for item in items %}
+    <li class="{{ 'done' if item.id in done }}">
+      <form method="post" action="/spam/checklist" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="item_id" value="{{ item.id }}">
+        <button class="small" type="submit" title="Toggle done">{{ "✅" if item.id in done else "☐" }}</button></form>
+      <div><div class="title">{% if item.url %}<a href="{{ item.url }}" {% if item.url.startswith('http') %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}{{ item.title }}{% endif %} <span class="badge">{{ item.category }}</span></div>
+        {% if item.why %}<small class="muted">{{ item.why }}</small>{% endif %}</div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="grid-2" id="calls">
+  <div class="card">
+    <h2>Phone blocklist</h2>
+    <p>Build a block list from the FTC's public Do Not Call complaint data: numbers that many people have reported. Import the file on your phone, then block the contact.</p>
+    <p class="muted">{{ total_numbers }} reported numbers cached locally.</p>
+    <form method="post" action="/spam/dnc/fetch">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="row">
+        <div><label for="state">State</label><input id="state" name="state" type="text" maxlength="2" value="{{ state or '' }}" placeholder="e.g. TX"></div>
+        <div><label for="area_code">Area code (optional)</label><input id="area_code" name="area_code" type="text" maxlength="3"></div>
+        <div><label for="days">Days back</label><input id="days" name="days" type="number" value="30" min="1" max="365"></div>
+      </div>
+      <p><button type="submit" {{ 'disabled' if not has_key }}>Fetch from FTC API</button>{% if not has_key %} <small class="muted">Needs a free <a href="https://api.data.gov/signup/" target="_blank" rel="noopener">api.data.gov key</a> in Settings.</small>{% endif %}</p>
+    </form>
+    <form method="post" action="/spam/dnc/upload" enctype="multipart/form-data" class="actions">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="file" name="file" accept=".csv" required>
+      <button type="submit">Upload FTC CSV</button>
+    </form>
+    <p class="help">Or download daily CSVs from the <a href="https://www.ftc.gov/policy-notices/open-government/data-sets/do-not-call-data" target="_blank" rel="noopener">FTC Do Not Call data page</a>.</p>
+    <p><a class="btn primary" href="/spam/blocklist.vcf?min_reports=3">Download blocklist (.vcf, 3+ reports)</a></p>
+    <p class="help">iPhone: open the .vcf → Add to Contacts → open the contact → Block this Caller. Android: Contacts → Import → open the contact → Block numbers. Caller ID is often spoofed, so this catches repeat offenders, not everything. Your carrier's spam filter and "Silence unknown callers" do the heavy lifting.</p>
+  </div>
+  <div class="card">
+    <h2>Who called me?</h2>
+    <form method="get" action="/spam#calls" class="actions">
+      <input type="text" name="number" value="{{ number }}" placeholder="(555) 123-4567">
+      <button type="submit">Look up</button>
+    </form>
+    {% if looked_up %}
+      {% if lookup %}
+      <p><strong>{{ lookup.reports }}</strong> FTC complaint(s){% if lookup.robocall_reports %}, {{ lookup.robocall_reports }} robocall{% endif %}. Last reported {{ lookup.last_reported }}.</p>
+      {% if lookup.subjects %}<p class="muted">Reported as: {{ lookup.subjects|join(", ") }}</p>{% endif %}
+      {% else %}<p class="muted">No complaints for that number in the locally cached data.</p>{% endif %}
+    {% endif %}
+    <h3>Most reported (cached)</h3>
+    <table>
+      {% for n in top %}<tr><td class="mono">{{ n.number[:3] }}-{{ n.number[3:6] }}-{{ n.number[6:] }}</td><td>{{ n.reports }} reports</td><td class="muted">{{ (n.subjects or [""])[0] }}</td></tr>
+      {% else %}<tr><td class="muted">Fetch or upload complaint data first.</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="card" id="unsubscribe">
+  <h2>Inbox unsubscribe helper</h2>
+  <p>Finds senders that include a standard unsubscribe header. <strong>One-click</strong> (RFC 8058) unsubscribes are automated. Email-based ones send an "unsubscribe" message from your address. Plain links are never auto-opened, because opening a spammer's link can confirm your address is live.</p>
+  <form method="post" action="/spam/unsubscribe/scan" class="actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="udays" class="inline">Scan the last</label> <input id="udays" class="narrow" type="number" name="days" value="60" min="1" max="365"> <span>days</span>
+    <button type="submit" {{ 'disabled' if not has_imap }}>Scan inbox</button>{% if not has_imap %} <small class="muted">Connect IMAP in Settings first.</small>{% endif %}
+  </form>
+  {% if senders %}
+  <form method="post" action="/spam/unsubscribe">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="table-wrap">
+    <table>
+      <tr><th><input type="checkbox" data-select-all="sender_id" aria-label="Select all"></th><th>Sender</th><th>Emails</th><th>Method</th><th>Status</th></tr>
+      {% for s in senders %}
+      <tr>
+        <td><input type="checkbox" name="sender_id" value="{{ s.id }}" {{ 'disabled' if s.status == 'unsubscribed' }}></td>
+        <td>{{ s.display_name or s.sender }}<br><small class="muted">{{ s.sender }} · {{ (s.sample_subject or "")[:80] }}</small></td>
+        <td>{{ s.messages }}</td>
+        <td>{% if s.one_click_url %}<span class="badge ok">one-click</span>{% elif s.mailto %}<span class="badge info">email</span>{% elif s.web_url %}<a class="badge warn" href="{{ s.web_url }}" target="_blank" rel="noopener noreferrer">web link ↗</a>{% endif %}</td>
+        <td>{{ s.status }}{% if s.detail %}<br><small class="muted">{{ s.detail }}</small>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    <div class="actions">
+      <button class="primary" type="submit" name="action" value="unsubscribe">Unsubscribe selected</button>
+      <button type="submit" name="action" value="keep">Keep selected</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>People</h1><p class="muted">Yourself, and family members who've authorized you to act for them.</p></div>
+  <a class="btn primary" href="/profiles/new">Add a person</a>
+</div>
+<div class="card table-wrap">
+  {% if profiles %}
+  <table>
+    <tr><th>Name</th><th>Relationship</th><th>Law used</th><th>Monitoring</th><th></th></tr>
+    {% for p in profiles %}
+    {% set law = resolve_law(p.country, p.region) %}
+    <tr>
+      <td><a href="/profiles/{{ p.id }}">{{ p.label }}</a><br><small class="muted">{{ p.full_name }}</small></td>
+      <td>{{ "Me" if p.relation == "self" else "Authorized agent" }}{% if p.relation == "agent" and not p.agent_authorization_on_file %} <span class="badge warn">authorization missing</span>{% endif %}</td>
+      <td>{{ law.short }} <small class="muted">({{ law.region_label }})</small></td>
+      <td>{{ "On" if p.monitoring_enabled else "Off" }}</td>
+      <td class="right"><a href="/requests/new?profile_id={{ p.id }}">Create requests</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p>No one yet. <a href="/profiles/new">Add yourself</a>.</p>{% endif %}
+</div>
+{% endblock %}

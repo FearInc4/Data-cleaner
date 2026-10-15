@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Settings</h1><p class="muted">Secrets are encrypted at rest. Leave a secret as ••••••••, or blank, to keep its current value.</p></div>
+  <form method="post" action="/settings/tick" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Run scheduler now</button></form>
+</div>
+<div class="callout">
+  <strong>Email tips:</strong> Use a dedicated address (an alias such as privacy-you@yourdomain or a new Gmail/Fastmail/Proton Bridge account) so broker replies don't get lost.
+  Gmail: smtp.gmail.com:587 (starttls) / imap.gmail.com:993 with an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">app password</a>.
+  Outlook: smtp-mail.outlook.com:587 / outlook.office365.com:993. Fastmail: smtp.fastmail.com:465 (ssl) / imap.fastmail.com:993.
+</div>
+<form method="post" action="/settings">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for group, items in groups.items() %}
+  <fieldset class="card">
+    <legend>{{ group }}</legend>
+    <div class="row">
+    {% for d, value in items %}
+      <div>
+        {% if d.kind == "bool" %}
+          <label class="check"><input type="checkbox" name="{{ d.key }}" {{ 'checked' if value }}> {{ d.label }}</label>
+        {% elif d.kind == "choice" %}
+          <label for="{{ d.key }}">{{ d.label }}</label>
+          <select id="{{ d.key }}" name="{{ d.key }}">{% for c in d.choices %}<option value="{{ c }}" {{ 'selected' if c == value }}>{{ c }}</option>{% endfor %}</select>
+        {% else %}
+          <label for="{{ d.key }}">{{ d.label }}</label>
+          <input id="{{ d.key }}" name="{{ d.key }}" type="{{ 'password' if d.kind == 'secret' else ('number' if d.kind == 'int' else 'text') }}" value="{{ value }}" autocomplete="off">
+        {% endif %}
+        {% if d.help %}<div class="help">{{ d.help }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    </div>
+    {% if group == "Email (sending)" %}<p><button class="small" type="submit" formaction="/settings/test-smtp">Test SMTP login</button> <small class="muted">(saves nothing; save first)</small></p>{% endif %}
+    {% if group == "Email (reading replies)" %}<p><button class="small" type="submit" formaction="/settings/test-imap">Test IMAP login</button> <small class="muted">If left blank, the IMAP password defaults to the SMTP one when the usernames match.</small></p>{% endif %}
+  </fieldset>
+  {% endfor %}
+  <p><button class="primary" type="submit">Save settings</button></p>
+</form>
+<p class="muted">Scheduler last ran: {{ last_tick or "not yet" }}</p>
+{% endblock %}

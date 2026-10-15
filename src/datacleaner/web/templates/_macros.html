@@ -1,0 +1,26 @@
+{% macro status_badge(status) -%}
+{%- set cls = {"completed": "ok", "sent": "info", "queued": "info", "acknowledged": "info",
+               "draft": "warn", "awaiting_user": "warn", "needs_verification": "warn", "needs_user_action": "warn",
+               "overdue": "err", "rejected": "err"}.get(status, "") -%}
+<span class="badge {{ cls }}">{{ status|label }}</span>
+{%- endmacro %}
+
+{% macro priority(p) -%}
+{%- if p == 1 %}<span class="p1" title="Crucial">●●</span>{% elif p == 2 %}<span class="p2" title="High priority">●</span>{% endif -%}
+{%- endmacro %}
+
+{% macro method_badges(b) -%}
+{% for m in b.methods %}<span class="badge">{{ m }}</span> {% endfor %}
+{% for r in b.requires %}<span class="badge warn" title="Required">{{ r|label }}</span> {% endfor %}
+{%- endmacro %}
+
+{% macro csrf_field(csrf) -%}<input type="hidden" name="csrf" value="{{ csrf }}">{%- endmacro %}
+
+{% macro finding_state(f) -%}
+{%- if f.status == "removed" %}<span class="badge ok">removed</span>
+{%- elif f.status == "removal_requested" %}<span class="badge info">removal requested</span>
+{%- elif f.status == "dismissed" %}<span class="badge">dismissed</span>
+{%- elif f.status == "resolved" %}<span class="badge ok">resolved</span>
+{%- elif f.check_state == "blocked" %}<span class="badge warn">check yourself</span>
+{%- else %}<span class="badge err">found</span>{% endif -%}
+{%- endmacro %}

@@ -1,0 +1,19 @@
+{% import "_macros.j2" as m %}
+To the Privacy Officer at {{ broker.name }}:
+
+{{ m.agent_line(agent) }}I am writing under the {{ law.title }}. I request that you:
+
+1. Stop using or disclosing my personal information for direct marketing, and stop using or disclosing it to help other organisations direct market to me (APP 7.6).
+2. Tell me where you got my personal information (APP 7.6(e)).
+3. Destroy or de-identify my personal information, since you don't need it for any purpose permitted under the APPs (APP 11.2), and remove any public listing about me.
+4. Give me access to the personal information you hold about me (APP 12).
+
+The small business exemption does not apply to organisations that disclose personal information for a benefit or collect it from others for a benefit (section 6D(4)(c)–(d)).
+
+Use the details below only to locate my records:
+
+{{ m.identity(person) }}{{ m.listing(listing_url) }}
+
+APP 7.7 requires you to act on a direct marketing request free of charge and within a reasonable period. Please respond by {{ deadline }}. If you don't, I will complain to the {{ law.regulators[0].name }}.
+
+{{ m.signoff(sender, reference) }}

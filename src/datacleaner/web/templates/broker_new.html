@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Add a broker</h1>
+<p class="muted">Found your data on a site that isn't listed? Add it here. Please also send it upstream as a PR to <code>src/datacleaner/brokers/data/</code> so everyone benefits.</p>
+<form method="post" action="/brokers/new" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="row">
+    <div><label for="name">Name</label><input id="name" name="name" type="text" required></div>
+    <div><label for="website">Website</label><input id="website" name="website" type="url" placeholder="https://"></div>
+    <div><label for="category">Category</label><select id="category" name="category">{% for c in categories %}<option value="{{ c }}">{{ c|label }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row">
+    <div><label for="privacy_email">Privacy / opt-out email</label><input id="privacy_email" name="privacy_email" type="email"></div>
+    <div><label for="opt_out_url">Opt-out page</label><input id="opt_out_url" name="opt_out_url" type="url" placeholder="https://"></div>
+  </div>
+  <label for="notes">Notes</label><textarea id="notes" name="notes"></textarea>
+  <p><button class="primary" type="submit">Add broker</button></p>
+</form>
+{% endblock %}

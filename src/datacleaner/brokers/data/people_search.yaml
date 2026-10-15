@@ -1,0 +1,535 @@
+# People-search and background-check sites (mostly US).
+#
+# Facts (URLs, addresses, process requirements) were cross-checked against the
+# brokers' own pages and community references including the Big Ass Data
+# Broker Opt-Out List (github.com/yaelwrites/Big-Ass-Data-Broker-Opt-Out-List).
+# Descriptions are our own. Brokers change their processes often: please send
+# a PR when something breaks.
+#
+# Field reference: see src/datacleaner/brokers/__init__.py (BrokerSpec).
+# search_url placeholders: {first} {last} {middle} {city} {state} {state_name} {zip}
+#   transforms: :slug (lower-hyphen) :Slug (Title-Hyphen) :q (url-quote) :plus :upper :lower
+
+- slug: beenverified
+  name: BeenVerified
+  website: https://www.beenverified.com
+  domains: [beenverified.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.beenverified.com/app/optout/search
+  privacy_email: privacy@beenverified.com
+  methods: [form, email]
+  requires: [email_verification]
+  owns: [PeopleLooker, PeopleSmart, NeighborWho, Ownerly, NumberGuru, MooseRoots]
+  steps:
+    - Search for yourself on the opt-out page (there is a separate property search opt-out at /app/optout/address-search).
+    - Pick your record and enter your email address.
+    - Click the confirmation link BeenVerified emails you.
+  notes: Only one opt-out per email address; email privacy@ for additional records. Opting out here also covers PeopleLooker and PeopleSmart.
+
+- slug: intelius
+  name: Intelius (PeopleConnect)
+  website: https://www.intelius.com
+  domains: [intelius.com, peopleconnect.us, mailer.intelius.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://suppression.peopleconnect.us/login
+  privacy_email: support@mailer.intelius.com
+  methods: [form, email, phone]
+  requires: [email_verification]
+  owns: [Instant Checkmate, TruthFinder, US Search, ZabaSearch, Addresses.com, AnyWho, PeopleFinder, PeopleLookup, Classmates, Spock, iSearch, LookUpAnyone, Phonesbook, PublicRecords.com, InstantPeopleFinder, DateCheck]
+  steps:
+    - Open the PeopleConnect Suppression Center and verify your email.
+    - Search for your record(s) and suppress each one.
+  notes: One suppression covers the whole PeopleConnect family (Intelius, Instant Checkmate, TruthFinder, and more). Phone 1-888-245-1655.
+
+- slug: mylife
+  name: MyLife
+  website: https://www.mylife.com
+  domains: [mylife.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.mylife.com/privacyrequest
+  privacy_email: privacy@mylife.com
+  methods: [email, form, phone]
+  requires: [profile_url]
+  steps:
+    - Find your MyLife profile and copy its URL.
+    - Submit the privacy request form, or email privacy@mylife.com with your name and the profile URL.
+  notes: May push you to create an account or upload ID; you don't have to. Phone (888) 704-1900.
+
+- slug: nuwber
+  name: Nuwber
+  website: https://nuwber.com
+  domains: [nuwber.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://nuwber.com/removal/link
+  privacy_email: support@nuwber.com
+  search_url: https://nuwber.com/search?name={first:q}%20{last:q}&city={city:q}&state={state:upper}
+  methods: [form, email]
+  requires: [profile_url, email_verification]
+  steps:
+    - Search for yourself (filter by state) and copy the person URL.
+    - Paste it into the removal form and confirm the email link.
+  notes: If the form fails, email support@nuwber.com with a screenshot of the listing.
+
+- slug: smartbackgroundchecks
+  name: SmartBackgroundChecks
+  website: https://www.smartbackgroundchecks.com
+  domains: [smartbackgroundchecks.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.smartbackgroundchecks.com/optout
+  methods: [form]
+  requires: [captcha]
+  notes: Removal here usually also removes the PeopleFinders listing.
+
+- slug: spokeo
+  name: Spokeo
+  website: https://www.spokeo.com
+  domains: [spokeo.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.spokeo.com/optout
+  search_url: https://www.spokeo.com/{First:Slug}-{Last:Slug}/{state_name:Slug}/{city:Slug}
+  methods: [form]
+  requires: [profile_url, email_verification]
+  steps:
+    - Find your listing and copy its URL.
+    - On the opt-out page, scroll to the "opt out your information" section, paste the URL and your email.
+    - Click the confirmation link Spokeo emails you.
+  notes: Also covers FreePeopleDirectory. Reports suggest data can remain visible to paid accounts.
+
+- slug: thatsthem
+  name: That's Them
+  website: https://thatsthem.com
+  domains: [thatsthem.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://thatsthem.com/optout
+  search_url: https://thatsthem.com/name/{First:Slug}-{Last:Slug}/{City:Slug}-{state:upper}
+  methods: [form]
+  requires: [captcha]
+
+- slug: whitepages
+  name: Whitepages
+  website: https://www.whitepages.com
+  domains: [whitepages.com, 411.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.whitepages.com/suppression_requests
+  search_url: https://www.whitepages.com/name/{First:Slug}-{Last:Slug}/{City:Slug}-{state:upper}
+  methods: [form, phone]
+  requires: [profile_url, phone_call]
+  owns: [411.com]
+  steps:
+    - Find your listing and copy its URL.
+    - Paste it into the suppression form; Whitepages calls you with a code to confirm.
+  notes: Removal from Whitepages does not always remove you from Whitepages Premium.
+
+- slug: checkpeople
+  name: CheckPeople
+  website: https://checkpeople.com
+  domains: [checkpeople.com]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://checkpeople.com/opt-out
+  methods: [form]
+  requires: [email_verification]
+  notes: Asks for date of birth and full legal name.
+
+- slug: clustal
+  name: Clustal
+  website: https://www.clustal.org
+  domains: [clustal.org]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.clustal.org/privacy-control
+  methods: [form]
+  requires: [profile_url, email_verification]
+  notes: Use the "view full record" URL. Each listing needs a different email address.
+
+- slug: fastpeoplesearch
+  name: FastPeopleSearch
+  website: https://www.fastpeoplesearch.com
+  domains: [fastpeoplesearch.com]
+  category: people_search
+  regions: [US]
+  priority: 2
+  opt_out_url: https://www.fastpeoplesearch.com/optout
+  search_url: https://www.fastpeoplesearch.com/name/{first:slug}-{last:slug}_{city:slug}-{state:slug}
+  methods: [form]
+  requires: [captcha, email_verification]
+
+- slug: truepeoplesearch
+  name: TruePeopleSearch
+  website: https://www.truepeoplesearch.com
+  domains: [truepeoplesearch.com]
+  category: people_search
+  regions: [US]
+  priority: 2
+  opt_out_url: https://www.truepeoplesearch.com/removal
+  search_url: https://www.truepeoplesearch.com/results?name={first:q}%20{last:q}&citystatezip={city:q}%2C%20{state:upper}
+  methods: [form]
+  requires: [captcha, email_verification]
+
+- slug: familytreenow
+  name: FamilyTreeNow
+  website: https://www.familytreenow.com
+  domains: [familytreenow.com]
+  category: genealogy
+  regions: [US]
+  priority: 2
+  opt_out_url: https://www.familytreenow.com/optout
+  methods: [form]
+  requires: [captcha]
+
+- slug: usphonebook
+  name: USPhoneBook
+  website: https://www.usphonebook.com
+  domains: [usphonebook.com]
+  category: people_search
+  regions: [US]
+  priority: 2
+  opt_out_url: https://www.usphonebook.com/opt-out/
+  privacy_email: support+optout@usphonebook.com
+  search_url: https://www.usphonebook.com/{first:slug}-{last:slug}/{state_name:slug}/{city:slug}
+  methods: [form, email]
+  requires: []
+
+- slug: ancestry
+  name: Ancestry
+  website: https://www.ancestry.com
+  domains: [ancestry.com]
+  category: genealogy
+  regions: ["*"]
+  priority: 2
+  opt_out_url: https://support.ancestry.com/s/reportissue?language=en_US
+  privacy_email: privacy@ancestry.com
+  methods: [email, form]
+  requires: [account, profile_url]
+  steps:
+    - Create a free account (not a trial) and search the records sidebar for every state you've lived in.
+    - Copy each record URL (even if it redirects to a sales page) and email them to privacy@ancestry.com.
+
+- slug: archives
+  name: Archives.com
+  website: https://www.archives.com
+  domains: [archives.com]
+  category: genealogy
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.archives.com/Optout
+  methods: [form]
+  requires: [account]
+
+- slug: cyberbackgroundchecks
+  name: Cyber Background Checks
+  website: https://www.cyberbackgroundchecks.com
+  domains: [cyberbackgroundchecks.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.cyberbackgroundchecks.com/removal
+  search_url: https://www.cyberbackgroundchecks.com/people/{first:slug}-{last:slug}/{state_name:slug}/{city:slug}
+  methods: [form]
+  requires: [captcha]
+
+- slug: everyjoe
+  name: EveryJoe
+  website: https://www.everyjoe.com
+  domains: [everyjoe.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.everyjoe.com/do-not-sell/
+  methods: [form]
+  requires: [profile_url]
+
+- slug: familysearch
+  name: FamilySearch
+  website: https://www.familysearch.org
+  domains: [familysearch.org]
+  category: genealogy
+  regions: ["*"]
+  priority: 3
+  opt_out_url: https://submit-irm.trustarc.com/services/validation/b8d6e704-e5b1-42a0-9f86-bbdec35939a1
+  methods: [form]
+  requires: [account, profile_url, email_verification]
+
+- slug: infotracer
+  name: InfoTracer
+  website: https://www.infotracer.com
+  domains: [infotracer.com]
+  category: background_check
+  regions: [US]
+  priority: 3
+  opt_out_url: https://infotracer.com/optout/
+  methods: [form, mail]
+  requires: []
+  notes: Also accepts a mailed or faxed form (fax 1-617-933-9946).
+
+- slug: peoplebyname
+  name: PeopleByName
+  website: https://www.peoplebyname.com
+  domains: [peoplebyname.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.peoplebyname.com/remove.php
+  search_url: https://www.peoplebyname.com/people/{Last:Slug}/{First:Slug}
+  methods: [form]
+  requires: [profile_url]
+  notes: Opt out each record separately.
+
+- slug: peoplesearchnow
+  name: PeopleSearchNow
+  website: https://www.peoplesearchnow.com
+  domains: [peoplesearchnow.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.peoplesearchnow.com/opt-out
+  search_url: https://www.peoplesearchnow.com/person/{first:slug}-{last:slug}_{city:slug}-{state:slug}
+  methods: [form]
+  requires: [captcha]
+
+- slug: peoplefinders
+  name: PeopleFinders
+  website: https://www.peoplefinders.com
+  domains: [peoplefinders.com]
+  category: people_search
+  regions: [US]
+  priority: 2
+  opt_out_url: https://www.peoplefinders.com/opt-out
+  methods: [form]
+  requires: [email_verification]
+
+- slug: privateeye
+  name: PrivateEye
+  website: https://www.privateeye.com
+  domains: [privateeye.com]
+  category: background_check
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.privateeye.com/removal
+  methods: [form]
+  requires: [email_verification]
+
+- slug: privaterecords
+  name: PrivateRecords
+  website: https://www.privaterecords.net
+  domains: [privaterecords.net]
+  category: background_check
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.privaterecords.net/api/helper/optOutLight/search
+  methods: [form]
+  requires: []
+
+- slug: propertyrecs
+  name: PropertyRecs
+  website: https://www.propertyrecs.com
+  domains: [propertyrecs.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://dashboard.propertyrecs.com/opt-out
+  methods: [form]
+  requires: []
+
+- slug: searchpeoplefree
+  name: SearchPeopleFree
+  website: https://www.searchpeoplefree.com
+  domains: [searchpeoplefree.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.searchpeoplefree.com/opt-out
+  search_url: https://www.searchpeoplefree.com/find/{first:slug}-{last:slug}/{state:slug}/{city:slug}
+  methods: [form]
+  requires: [captcha]
+  notes: Search by name, phone, address and email; each may have separate listings.
+
+- slug: searchquarry
+  name: SearchQuarry
+  website: https://www.searchquarry.com
+  domains: [searchquarry.com]
+  category: background_check
+  regions: [US]
+  priority: 3
+  opt_out_url: https://members.searchquarry.com/removeMyData/
+  methods: [form]
+  requires: [email_verification]
+
+- slug: socialcatfish
+  name: Social Catfish
+  website: https://socialcatfish.com
+  domains: [socialcatfish.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://socialcatfish.com/opt-out/
+  methods: [form]
+  requires: [profile_url, email_verification]
+
+- slug: spyfly
+  name: SpyFly
+  website: https://www.spyfly.com
+  domains: [spyfly.com]
+  category: background_check
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.spyfly.com/help-center/privacy-requests
+  privacy_email: support@spyfly.com
+  methods: [form, email]
+  requires: []
+
+- slug: truepeoplesearch-net
+  name: TruePeopleSearch.net
+  website: https://truepeoplesearch.net
+  domains: [truepeoplesearch.net]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://docs.google.com/forms/d/e/1FAIpQLSeCPggzv4iXE20iUjcr6vdVWxBOblCyGwDLcO-jZA5j2YF5fQ/viewform
+  methods: [form]
+  requires: [profile_url]
+  notes: Unrelated to TruePeopleSearch.com. Avoid the "top rated background search" ads.
+
+- slug: unpan
+  name: UNPAN (unpan.org people search)
+  website: https://unpan.org
+  domains: [unpan.org]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://unpan.org/opt-out
+  methods: [form]
+  requires: [profile_url, email_verification]
+
+- slug: unitedstatesphonebook
+  name: United States Phone Book
+  website: https://www.unitedstatesphonebook.com
+  domains: [unitedstatesphonebook.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.unitedstatesphonebook.com/contact.php
+  methods: [form]
+  requires: []
+  notes: Removal needs the phone number and ZIP code exactly as listed.
+
+- slug: unmask
+  name: UnMask
+  website: https://unmask.com
+  domains: [unmask.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://unmask.com/opt-out/
+  methods: [form]
+  requires: [captcha, email_verification]
+
+- slug: usa-people-search
+  name: USA People Search
+  website: https://www.usa-people-search.com
+  domains: [usa-people-search.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://www.usa-people-search.com/removal
+  methods: [form]
+  requires: []
+
+- slug: veripages
+  name: Veripages
+  website: https://veripages.com
+  domains: [veripages.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://veripages.com/inner/control-privacy
+  methods: [form]
+  requires: [profile_url, captcha, email_verification]
+
+- slug: voterrecords
+  name: VoterRecords
+  website: https://voterrecords.com
+  domains: [voterrecords.com]
+  category: people_search
+  regions: [US]
+  priority: 3
+  opt_out_url: https://voterrecords.com/
+  methods: [form]
+  requires: [profile_url, email_verification]
+  notes: The "record opt-out" link is at the bottom of each record page.
+
+- slug: menstoppingviolence-people
+  name: Men Stopping Violence people directory
+  website: https://www.menstoppingviolence.org/people/
+  domains: [menstoppingviolence.org]
+  category: people_search
+  regions: [US]
+  priority: 1
+  opt_out_url: https://www.menstoppingviolence.org/opt-out/
+  methods: [form]
+  requires: [profile_url, email_verification]
+
+- slug: zoominfo
+  name: ZoomInfo
+  website: https://www.zoominfo.com
+  domains: [zoominfo.com]
+  category: b2b
+  regions: ["*"]
+  priority: 2
+  opt_out_url: https://privacyrequest.zoominfo.com/remove/verify
+  privacy_email: privacy@zoominfo.com
+  methods: [form, email]
+  requires: [email_verification]
+
+- slug: pimeyes
+  name: PimEyes
+  website: https://pimeyes.com
+  domains: [pimeyes.com]
+  category: face_search
+  regions: ["*"]
+  priority: 3
+  opt_out_url: https://pimeyes.com/en/opt-out-request-form
+  methods: [form]
+  requires: [id_document]
+  notes: Needs a photo of your face and a photo ID with everything except name and photo blurred.
+
+- slug: facecheck
+  name: FaceCheck.ID
+  website: https://facecheck.id
+  domains: [facecheck.id]
+  category: face_search
+  regions: ["*"]
+  priority: 3
+  opt_out_url: https://facecheck.id/Face-Search/RemoveMyPhotos
+  methods: [form]
+  requires: [id_document]
+
+- slug: clearview
+  name: Clearview AI
+  website: https://www.clearview.ai
+  domains: [clearview.ai]
+  category: face_search
+  regions: ["*"]
+  priority: 3
+  opt_out_url: https://www.clearview.ai/privacy-and-requests
+  methods: [form]
+  requires: [id_document]
+  notes: Honors deletion for residents of states/countries with applicable laws (CA, IL, VA, CO, CT, UT, EU/UK and others).

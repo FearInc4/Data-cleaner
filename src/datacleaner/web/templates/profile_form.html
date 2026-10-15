@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ "Edit " ~ profile.label if profile else "Add a person" }}</h1>
+    <p class="muted">Only what you enter here is used to find and remove listings. It's encrypted on this machine and never sent anywhere except in the requests you approve.</p>
+  </div>
+  {% if profile and profile.relation == "agent" %}<a class="btn" href="/profiles/{{ profile.id }}/authorization.txt">Download authorization letter</a>{% endif %}
+</div>
+{% if law %}<div class="callout">Requests for this person cite <strong>{{ law.title or law.short }}</strong>{% if law.citation %} ({{ law.citation }}){% endif %}. Brokers get <strong>{{ law.deadline_days }} days</strong> to respond.{% if drop %} California residents should also use <a href="https://consumer.drop.privacy.ca.gov" target="_blank" rel="noopener">DROP</a>.{% endif %}</div>{% endif %}
+
+<form method="post" action="/profiles/save" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if profile %}<input type="hidden" name="profile_id" value="{{ profile.id }}">{% endif %}
+  <fieldset>
+    <legend>Who is this?</legend>
+    <div class="row">
+      <div><label for="label">Label</label><input id="label" name="label" type="text" value="{{ profile.label if profile else 'Me' }}" required></div>
+      <div><label for="relation">Relationship</label>
+        <select id="relation" name="relation">
+          <option value="self" {{ 'selected' if not profile or profile.relation == 'self' }}>This is me</option>
+          <option value="agent" {{ 'selected' if profile and profile.relation == 'agent' }}>Someone who authorized me (family member, client)</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label for="first_name">First name</label><input id="first_name" name="first_name" type="text" value="{{ pii.get('first_name', '') }}" required></div>
+      <div><label for="middle_name">Middle name</label><input id="middle_name" name="middle_name" type="text" value="{{ pii.get('middle_name', '') }}"></div>
+      <div><label for="last_name">Last name</label><input id="last_name" name="last_name" type="text" value="{{ pii.get('last_name', '') }}" required></div>
+    </div>
+    <label for="aliases">Other names (maiden name, nicknames)</label>
+    <input id="aliases" name="aliases" type="text" value="{{ pii.get('aliases', [])|join(', ') }}">
+    <div class="row">
+      <div><label for="birth_date">Date of birth</label><input id="birth_date" name="birth_date" type="date" value="{{ pii.get('birth_date', '') }}"><div class="help">Used to tell your listing apart from namesakes when scanning.</div></div>
+      <div><label class="check"><input type="checkbox" name="share_birth_date" {{ 'checked' if pii.get('share_birth_date') }}> Include date of birth in requests and forms</label><div class="help">Off by default: don't hand brokers data they may not have.</div></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Contact details to remove</legend>
+    <div class="row">
+      <div><label for="emails">Email addresses</label><textarea id="emails" name="emails" placeholder="one per line">{{ pii.get('emails', [])|join('\n') }}</textarea><div class="help">The first one is used on opt-out forms.</div></div>
+      <div><label for="phones">Phone numbers</label><textarea id="phones" name="phones" placeholder="one per line">{{ pii.get('phones', [])|join('\n') }}</textarea></div>
+      <div><label for="usernames">Usernames / handles</label><textarea id="usernames" name="usernames" placeholder="one per line">{{ pii.get('usernames', [])|join('\n') }}</textarea></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Where you live (and have lived)</legend>
+    <div class="row">
+      <div><label for="country">Country</label>
+        <select id="country" name="country">
+          {% for code, name in countries.items() %}<option value="{{ code }}" {{ 'selected' if (profile.country if profile else 'US') == code }}>{{ name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% for code, regions in region_choices.items() %}
+      <div data-region-for="{{ code }}"><label>State / province</label>
+        <select name="region_{{ code }}">
+          <option value="">-</option>
+          {% for rc, rn in regions.items() %}<option value="{{ rc }}" {{ 'selected' if profile and profile.region == rc and profile.country == code }}>{{ rn }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+      <div id="region-other" hidden><label for="region_free">Region (optional)</label><input id="region_free" name="region_other" type="text" value="{{ profile.region if profile and profile.country not in region_choices else '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label for="street">Street address</label><input id="street" name="street" type="text" value="{{ cur.get('street', '') }}"></div>
+      <div><label for="city">City</label><input id="city" name="city" type="text" value="{{ cur.get('city', '') }}"></div>
+      <div><label for="postal_code">ZIP / postal code</label><input id="postal_code" name="postal_code" type="text" value="{{ cur.get('postal_code', '') }}"></div>
+    </div>
+    <label for="previous_addresses">Previous addresses</label>
+    <textarea id="previous_addresses" name="previous_addresses" placeholder="123 Old St, Springfield, IL, 62701">{{ prev_text }}</textarea>
+    <div class="help">One per line: street, city, state, ZIP. People-search sites list old addresses too.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Consent</legend>
+    <label class="check"><input type="checkbox" name="attest" required {{ 'checked' if profile and profile.attested_at }}> I confirm this is me, or a person who has authorized me in writing to manage their personal data. I won't use Data Cleaner to look up anyone else.</label>
+    <label class="check"><input type="checkbox" name="agent_authorization_on_file" {{ 'checked' if profile and profile.agent_authorization_on_file }}> (Agents only) I have their signed authorization letter on file.</label>
+    <label class="check"><input type="checkbox" name="monitoring_enabled" {{ 'checked' if not profile or profile.monitoring_enabled }}> Re-scan regularly and alert me when data reappears or shows up in a new breach.</label>
+  </fieldset>
+  <div class="actions">
+    <button class="primary" type="submit">Save</button>
+    <a class="btn" href="/profiles">Cancel</a>
+  </div>
+</form>
+{% if profile %}
+<form method="post" action="/profiles/{{ profile.id }}/delete" data-confirm="Delete this person and all their requests and findings? This can't be undone.">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="danger small" type="submit">Delete this person</button>
+</form>
+{% endif %}
+{% endblock %}
