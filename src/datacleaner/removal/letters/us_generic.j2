@@ -1,0 +1,18 @@
+{% import "_macros.j2" as m %}
+To the privacy team at {{ broker.name }}:
+
+{{ m.agent_line(agent) }}I am requesting that you:
+
+1. Delete all personal information you hold about me, and remove any public listing or profile about me.
+2. Stop selling, sharing or licensing my personal information to anyone.
+3. Suppress my information so it is not re-added from future data sources.
+
+Many companies extend these rights to every customer regardless of where they live, and your privacy policy describes an opt-out process. Please apply it to me.
+
+Use the details below only to find and remove my records:
+
+{{ m.identity(person) }}{{ m.listing(listing_url) }}
+
+Please complete this within 45 days, by {{ deadline }}, and confirm in writing. If you need anything else to locate my records, tell me exactly what you need.
+
+{{ m.signoff(sender, reference) }}

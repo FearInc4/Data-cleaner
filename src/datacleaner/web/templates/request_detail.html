@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, method_badges %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ req.broker.name }} {{ status_badge(req.status) }}{% if req.paused %} <span class="badge">paused</span>{% endif %}</h1>
+    <p class="muted">For {{ req.profile.label }} · {{ law.short }} · reference <code>{{ req.reference }}</code> <button type="button" class="copy" data-copy="{{ req.reference }}">Copy</button></p>
+  </div>
+  <a class="btn" href="/brokers/{{ req.broker.slug }}">Broker details</a>
+</div>
+
+{% if req.needs_review %}
+<div class="callout warn">
+  <strong>A reply needs your review.</strong> We couldn't confirm it really came from {{ req.broker.name }}, so nothing was changed automatically and follow-ups continue. Read it in the timeline below.
+  <form method="post" action="/requests/{{ req.id }}/action" class="actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="small" type="submit" name="action" value="reviewed">Reviewed, nothing to do</button>
+    <button class="small primary" type="submit" name="action" value="completed">It's genuine: mark removed</button>
+  </form>
+</div>
+{% endif %}
+
+{% if req.status == "draft" and preview %}
+<div class="card">
+  <h2>Review the email</h2>
+  <p>To: <code>{{ req.to_address }}</code><br>Subject: <strong>{{ preview.subject }}</strong></p>
+  <pre>{{ preview.body }}</pre>
+  <form method="post" action="/requests/{{ req.id }}/action" class="actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="primary" type="submit" name="action" value="approve">Send this request</button>
+    <span class="muted">Follow-ups go out automatically if they don't answer.</span>
+  </form>
+</div>
+{% endif %}
+
+{% if req.status in ("awaiting_user", "needs_user_action", "needs_verification", "rejected") %}
+<div class="card">
+  <h2>{% if req.status == "awaiting_user" %}Submit the opt-out{% elif req.status == "needs_verification" %}Confirm your request{% else %}Your move{% endif %}</h2>
+  {% if req.status == "needs_verification" %}<p>The broker emailed you a confirmation link. Click it (check your inbox), then resume follow-ups below.</p>{% endif %}
+  {% if req.status == "rejected" %}<p>The broker declined. Read their reply below. You can reply yourself, send a fresh request, or file a complaint.</p>{% endif %}
+  {% if req.broker.steps %}<ol class="steps">{% for s in req.broker.steps %}<li>{{ s }}</li>{% endfor %}</ol>{% endif %}
+  {% if req.broker.notes %}<p class="muted">{{ req.broker.notes }}</p>{% endif %}
+  <p>{{ method_badges(req.broker) }}</p>
+  <div class="actions">
+    {% if search_link %}<a class="btn" href="{{ search_link|safe_url }}" target="_blank" rel="noopener noreferrer">1. Find your listing ↗</a>{% endif %}
+    {% if req.broker.opt_out_url %}<a class="btn primary" href="{{ req.broker.opt_out_url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ "2. " if search_link }}Open the opt-out form ↗</a>{% endif %}
+    {% if assist and req.broker.opt_out_url %}
+    <form method="post" action="/requests/{{ req.id }}/assist" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit" title="Opens a browser window with the form pre-filled">Open pre-filled in a browser</button></form>
+    {% endif %}
+  </div>
+  <h3>Your details to paste</h3>
+  <table>
+    {% set p = req.profile %}
+    {% set a = p.current_address or {} %}
+    {% for label, value in [("Full name", p.short_name), ("First name", p.get("first_name")), ("Last name", p.get("last_name")), ("Email", form_email), ("Phone", (p.phones or [""])[0]), ("Street", a.get("street")), ("City", a.get("city")), ("State", a.get("region")), ("ZIP", a.get("postal_code")), ("Listing URL", req.listing_url)] %}
+    {% if value %}<tr><th>{{ label }}</th><td class="mono">{{ value }}</td><td><button type="button" class="copy" data-copy="{{ value }}">Copy</button></td></tr>{% endif %}
+    {% endfor %}
+  </table>
+  {% if alias %}<p class="help">The email above is this broker's own address. Confirmation emails sent to it are matched to this request automatically. If the form rejects it, switch to your plain address in the Status panel.</p>{% endif %}
+  <form method="post" action="/requests/{{ req.id }}/action" class="actions">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% if req.status == "awaiting_user" %}
+    <input type="text" name="note" placeholder="Optional note (confirmation number, etc.)">
+    <button class="primary" type="submit" name="action" value="submitted">I submitted it</button>
+    {% else %}
+    <button class="primary" type="submit" name="action" value="resume">Done, resume follow-ups</button>
+    {% if req.method == "email" %}<button type="submit" name="action" value="retry">Reset to draft and resend</button>{% endif %}
+    {% endif %}
+  </form>
+</div>
+{% endif %}
+
+{% if escalation %}
+<div class="card">
+  <h2>Complaint draft</h2>
+  <p>This broker missed its legal deadline. Review the draft, then file it with the regulator (they require a human to submit).</p>
+  <pre>{{ escalation.body }}</pre>
+  <button type="button" class="copy" data-copy="{{ escalation.body }}">Copy complaint text</button>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Timeline</h2>
+    <ul class="timeline">
+      {% for e in req.events %}
+      <li class="{{ e.direction }}">
+        <small class="muted">{{ e.at|datetime }}</small><br>{{ e.summary }}
+        {% if e.body and e.type != "escalation_ready" %}<details><summary>{{ "Show message" if e.direction in ("in", "out") else "Details" }}</summary><pre>{{ e.body }}</pre></details>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card">
+    <h2>Status</h2>
+    <table>
+      <tr><th>Method</th><td>{{ req.method }}{% if req.to_address %} → <code>{{ req.to_address }}</code>{% endif %}</td></tr>
+      <tr><th>Your address for them</th><td>{% if alias %}<code class="alias">{{ alias }}</code> <button type="button" class="copy" data-copy="{{ alias }}">Copy</button>{% else %}{{ req.profile.contact_email or "-" }}{% endif %}
+        <form method="post" action="/requests/{{ req.id }}/action" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if alias %}<button class="small" type="submit" name="action" value="alias_off" title="Some forms reject + in addresses">Use plain address</button>
+        {% else %}<button class="small" type="submit" name="action" value="alias_on">Use a per-broker address</button>{% endif %}</form></td></tr>
+      <tr><th>First sent</th><td>{{ req.first_sent_at|datetime or "-" }}</td></tr>
+      <tr><th>Legal deadline</th><td>{% if req.due_at %}{{ req.due_at|date }} ({{ law.deadline_days }} days){% else %}{{ law.deadline_days }} days after it's sent{% endif %}</td></tr>
+      <tr><th>Next follow-up</th><td>{{ req.next_action_at|datetime or "-" }}</td></tr>
+      <tr><th>Follow-ups sent</th><td>{{ req.followup_count }}</td></tr>
+      <tr><th>Last reply</th><td>{{ req.last_reply_at|datetime or "-" }}</td></tr>
+      {% if req.recheck_at %}<tr><th>Re-check for reappearance</th><td>{{ req.recheck_at|date }}</td></tr>{% endif %}
+    </table>
+    <form method="post" action="/requests/{{ req.id }}/action">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="listing_url">Listing URL on their site</label>
+      <div class="actions"><input id="listing_url" name="listing_url" type="url" value="{{ req.listing_url or '' }}" placeholder="https://"><button class="small" name="action" value="listing" type="submit">Save</button></div>
+      <label for="note">Note</label>
+      <div class="actions"><input id="note" name="note" type="text"><button class="small" name="action" value="note" type="submit">Add note</button></div>
+    </form>
+    <h3>Actions</h3>
+    <form method="post" action="/requests/{{ req.id }}/action" class="actions">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% if req.status != "completed" %}<button class="small" name="action" value="completed" type="submit">Mark removed</button>{% endif %}
+      {% if req.paused %}<button class="small" name="action" value="resume" type="submit">Resume follow-ups</button>
+      {% elif req.status not in ("completed", "cancelled", "draft", "awaiting_user") %}<button class="small" name="action" value="pause" type="submit">Pause follow-ups</button>{% endif %}
+      {% if req.first_sent_at and req.status != "completed" %}<button class="small" name="action" value="escalate" type="submit">Draft regulator complaint</button>{% endif %}
+      {% if req.status not in ("cancelled", "completed") %}<button class="small danger" name="action" value="cancel" type="submit">Cancel request</button>{% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

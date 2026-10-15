@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import priority, method_badges %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Data brokers</h1><p class="muted">{{ brokers|length }} shown. ●● crucial, ● high priority. Curated catalog plus anything you've imported from state registries.</p></div>
+  <div class="actions"><a class="btn" href="/brokers/new">Add a broker</a><a class="btn primary" href="/brokers/import">Import a state registry</a></div>
+</div>
+<form method="get" action="/brokers" class="card row">
+  <div><label for="q">Search</label><input id="q" name="q" type="text" value="{{ q }}" placeholder="name or website"></div>
+  <div><label for="category">Category</label><select id="category" name="category"><option value="">Any</option>{% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == category }}>{{ c|label }}</option>{% endfor %}</select></div>
+  <div><label for="method">Removal method</label><select id="method" name="method"><option value="">Any</option>{% for m in ["email", "form", "phone", "mail"] %}<option value="{{ m }}" {{ 'selected' if m == method }}>{{ m }}</option>{% endfor %}</select></div>
+  <div><label for="source">Source</label><select id="source" name="source"><option value="">All</option><option value="catalog" {{ 'selected' if source == 'catalog' }}>Curated</option><option value="registry" {{ 'selected' if source == 'registry' }}>Imported / added</option></select></div>
+  <div><label>&nbsp;</label><button type="submit">Filter</button></div>
+</form>
+<div class="card table-wrap">
+  <table>
+    <tr><th></th><th>Broker</th><th>Category</th><th>How to remove</th><th>Registries</th></tr>
+    {% for b in brokers %}
+    <tr>
+      <td>{{ priority(b.priority) }}</td>
+      <td><a href="/brokers/{{ b.slug }}">{{ b.name }}</a><br><small class="muted">{{ b.website|host }}</small>{% if not b.verified %} <span class="badge" title="Link not yet confirmed by a contributor">unverified</span>{% endif %}</td>
+      <td>{{ b.category|label }}</td>
+      <td>{{ method_badges(b) }}</td>
+      <td>{% for r in b.registries %}<span class="badge info">{{ r }}</span> {% endfor %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No brokers match.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

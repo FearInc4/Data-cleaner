@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import priority, method_badges %}
+{% block content %}
+<h1>Choose brokers for {{ profile.label }}</h1>
+<p class="muted">Requests will cite <strong>{{ law.title or law.short }}</strong>{% if law.citation %} ({{ law.citation }}){% endif %}. Email brokers get a letter automatically after you review the drafts. Form brokers are tracked as to-dos with one-click links (and assisted filling on desktop).</p>
+<form method="post" action="/requests/create" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="profile_id" value="{{ profile.id }}">
+  <div class="actions">
+    <span class="muted">Select:</span>
+    <button class="small" data-select="broker_id" data-filter="p1">Crucial</button>
+    <button class="small" data-select="broker_id" data-filter="p12">Crucial + high</button>
+    <button class="small" data-select="broker_id" data-filter="emailable">All with email</button>
+    <button class="small" data-select="broker_id" data-filter="all">Everything</button>
+    <button class="small" data-select="broker_id" data-filter="none">None</button>
+    <span class="right"><button class="primary" type="submit">Create requests</button></span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <tr><th><input type="checkbox" data-select-all="broker_id" aria-label="Select all"></th><th></th><th>Broker</th><th>Method</th><th>Category</th></tr>
+    {% for b in brokers %}
+    {% set ex = existing.get(b.id) %}
+    <tr>
+      <td><input type="checkbox" name="broker_id" value="{{ b.id }}" class="{{ 'p1 ' if b.priority == 1 }}{{ 'p12 ' if b.priority <= 2 }}{{ 'emailable' if 'email' in b.methods }}" {{ 'disabled' if ex }} {{ 'checked' if not ex and b.priority <= 2 }}></td>
+      <td>{{ priority(b.priority) }}</td>
+      <td><a href="/brokers/{{ b.slug }}">{{ b.name }}</a>{% if ex %} <a class="badge info" href="/requests/{{ ex.id }}">{{ ex.status|label }}</a>{% endif %}</td>
+      <td>{{ method_badges(b) }}</td>
+      <td>{{ b.category|label }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p><button class="primary" type="submit">Create requests</button></p>
+</form>
+{% endblock %}

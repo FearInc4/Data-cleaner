@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% set refresh = 6 if running else None %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Breaches &amp; leaks: {{ profile.label }}</h1>
+    <p class="muted">Checks {{ profile.emails|length }} email(s), {{ profile.get('usernames', [])|length }} username(s) and {{ profile.phones|length }} phone(s) against breach and paste indexes: {{ providers|join(", ") or "none enabled" }}.</p></div>
+  <form method="post" action="/breaches/run" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="profile_id" value="{{ profile.id }}">
+    <button class="primary" type="submit" {{ 'disabled' if 'breach' in running }}>{{ "Checking…" if 'breach' in running else "Check now" }}</button></form>
+</div>
+<div class="callout">Data Cleaner never downloads breach data. These services index leak sites and dark-web dumps and return only <em>which</em> breach, when, and what kind of data. Passwords are checked with k-anonymity, so only 5 characters of a hash leave this machine.</div>
+{% set run = runs.get("breach") %}
+{% if run %}<p class="muted">Last check {{ run.started_at|datetime }}: {{ run.summary.get("exposures", 0) }} exposures{% if run.summary.get("errors") %}, {{ run.summary.errors|length }} provider error(s){% endif %}.</p>
+{% if run.summary.get("errors") %}<details><summary>Errors</summary><pre>{{ run.summary.errors|join("\n") }}</pre></details>{% endif %}{% endif %}
+
+{% if advice %}
+<div class="card">
+  <h2>What to do</h2>
+  <ul>{% for a in advice %}<li>{{ a }}</li>{% endfor %}</ul>
+  <p class="muted">Leaked data types: {{ all_classes|join(", ") }}</p>
+</div>
+{% endif %}
+
+<div class="card table-wrap">
+  <table>
+    <tr><th>Breach / paste</th><th>Date</th><th>Data exposed</th><th>Source</th><th></th></tr>
+    {% for f in findings %}
+    <tr>
+      <td>{% if f.url %}<a href="{{ f.url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ f.title }}</a>{% else %}{{ f.title }}{% endif %}
+        <span class="badge {{ 'err' if f.kind == 'paste' else ('warn' if f.kind == 'breach' else 'info') }}">{{ f.kind }}</span>
+        {% if f.status == "resolved" %}<span class="badge ok">handled</span>{% endif %}
+        <br><small class="muted">{{ f.snippet }}</small></td>
+      <td class="nowrap">{{ f.occurred_on or "" }}</td>
+      <td>{{ f.data_classes|join(", ") }}</td>
+      <td>{{ f.source }}</td>
+      <td>{% if f.status == "new" %}<form method="post" action="/findings/{{ f.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/breaches"><button class="small" name="action" value="resolved" type="submit">Handled</button></form>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No exposures found yet. Press "Check now".</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card" id="password">
+  <h2>Has a password leaked?</h2>
+  <form method="post" action="/breaches/password" class="actions" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="password" name="password" required autocomplete="off" placeholder="Password to check">
+    <button type="submit">Check</button>
+  </form>
+  <p class="help">Uses the Have I Been Pwned range API. Not stored, not logged.</p>
+</div>
+{% endblock %}

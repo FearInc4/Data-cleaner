@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import provider_buttons %}
+{% block content %}
+<div class="auth-box card">
+  <h1>Welcome to Data Cleaner</h1>
+  {% if not setup_ok %}
+  <p>To make sure only you can set up this install, paste the <strong>setup token</strong>. It's printed in the server's output when it starts, and saved as <code>setup-token</code> in the data directory.</p>
+  <p class="help">Docker: run <code>docker compose logs datacleaner</code> and click the link it shows.</p>
+  <form method="get" action="/setup">
+    <label for="token">Setup token</label>
+    <input id="token" name="token" type="text" required autocomplete="off" autofocus>
+    <p><button class="primary" type="submit">Continue</button></p>
+  </form>
+  {% else %}
+  <p class="muted">Create your sign-in. Everything you enter stays on this machine, encrypted.</p>
+  {% if providers %}
+    <p><strong>Easiest:</strong> sign in with the email account you'll use for removal requests. It's connected in the same step.</p>
+    {{ provider_buttons(providers, "setup") }}
+    <div class="divider">or use a password</div>
+  {% endif %}
+  <form method="post" action="/setup">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="admin" required autocomplete="username">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required minlength="12" autocomplete="new-password">
+    <div class="help">At least 12 characters. Three or four random words works well.</div>
+    <label for="password2">Repeat password</label>
+    <input id="password2" name="password2" type="password" required minlength="12" autocomplete="new-password">
+    <p><button class="{{ 'primary' if not providers }}" type="submit">Create login</button></p>
+  </form>
+  {% if not providers %}
+  <details class="advanced">
+    <summary>Want "Sign in with Google / Microsoft" instead?</summary>
+    <p class="help">Each install uses its own sign-in app so no third party sits between you and your mailbox. Setting one up takes about 5 minutes; the steps are in the README ("Sign in with Google / Microsoft"). Use this redirect URI:</p>
+    <p><code>{{ base_url }}/auth/google/callback</code> or <code>{{ base_url }}/auth/microsoft/callback</code></p>
+    <form method="post" action="/setup/oauth-app">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="provider">Provider</label>
+      <select id="provider" name="provider"><option value="google">Google</option><option value="microsoft">Microsoft</option></select>
+      <label for="client_id">Client ID</label><input id="client_id" name="client_id" type="text" required autocomplete="off">
+      <label for="client_secret">Client secret</label><input id="client_secret" name="client_secret" type="password" required autocomplete="off">
+      <p><button type="submit">Save</button></p>
+    </form>
+  </details>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

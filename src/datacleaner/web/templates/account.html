@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import provider_icon, mailbox_name %}
+{% block content %}
+<div class="page-head"><div><h1>Account &amp; security</h1><p class="muted">How you sign in, and what this install can access.</p></div></div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Sign-in methods</h2>
+    <table>
+      <tr><td>Password</td><td>{% if user.has_password %}<span class="badge ok">set</span>{% else %}<span class="badge">not set</span>{% endif %}</td><td></td></tr>
+      {% for i in identities %}
+      <tr><td>{{ provider_icon(i.provider) }} {{ all_providers[i.provider].name }}</td><td>{{ i.email or "" }}<br><small class="muted">last used {{ i.last_login_at|date or "never" }}</small></td>
+        <td class="right"><form method="post" action="/account/unlink/{{ i.id }}" class="inline" data-confirm="Remove this sign-in method?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="small" type="submit">Remove</button></form></td></tr>
+      {% endfor %}
+    </table>
+    {% if providers %}
+    <div class="actions">
+      {% for p in providers %}<a class="btn small" href="/auth/{{ p.key }}/start?purpose=link">{{ provider_icon(p.key) }} Link {{ p.name }}</a>{% endfor %}
+    </div>
+    {% endif %}
+    <p class="help">Signing in with Google or Microsoft uses their security, including two-step verification. Only accounts linked here can sign in.</p>
+
+    <h3>{{ "Change" if user.has_password else "Set a" }} password</h3>
+    <form method="post" action="/account/password">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% if user.has_password %}<label for="current">Current password</label><input id="current" name="current" type="password" autocomplete="current-password" required>{% endif %}
+      <div class="row">
+        <div><label for="new">New password</label><input id="new" name="new" type="password" minlength="12" autocomplete="new-password" required></div>
+        <div><label for="new2">Repeat</label><input id="new2" name="new2" type="password" minlength="12" autocomplete="new-password" required></div>
+      </div>
+      <p><button type="submit">Save password</button></p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Connected mailboxes</h2>
+    {% for a in accounts %}
+      <p><span class="status-dot {{ '' if a.status == 'ok' else 'bad' }}"></span><strong>{{ a.email }}</strong> · {{ mailbox_name(a.provider) }}
+        {% if a.status != "ok" %}<br><span class="badge err">needs reconnecting</span> <small class="muted">{{ a.last_error }}</small>{% endif %}</p>
+    {% else %}
+      <p class="muted">None. <a href="/settings#email">Connect one</a>.</p>
+    {% endfor %}
+    <p><a href="/settings#email">Manage email settings →</a></p>
+
+    <h2>Sessions</h2>
+    <p>Sessions expire after a day of inactivity and always after 7 days.</p>
+    <form method="post" action="/account/signout-all" data-confirm="Sign out of every browser, including this one?">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out everywhere</button>
+    </form>
+  </div>
+</div>
+
+<div class="card danger-zone" id="erase">
+  <h2>Erase everything</h2>
+  <p>Permanently delete every person, request, finding, breach result, setting and your login from this install, and revoke its Google access. Brokers you've already contacted keep their copy of your request. Use this if you're done, or if you think someone else has had access.</p>
+  <form method="post" action="/account/erase" class="actions" data-confirm="This can't be undone. Erase everything?">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="confirm" class="inline">Type <code>ERASE</code> to confirm</label>
+    <input id="confirm" name="confirm" type="text" class="narrow" autocomplete="off" required>
+    <button class="danger" type="submit">Erase everything</button>
+  </form>
+</div>
+{% endblock %}

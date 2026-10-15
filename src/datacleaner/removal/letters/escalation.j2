@@ -1,0 +1,22 @@
+COMPLAINT DRAFT: review before submitting to {{ regulator.name }}
+Submit at: {{ regulator.url }}
+
+Business complained about: {{ broker.name }}{% if broker.website %} ({{ broker.website }}){% endif %}
+
+Contact used: {{ to_address or "web form" }}
+Request reference: {{ reference }}
+
+Summary:
+On {{ original_date }} I submitted a request{% if law.citation %} under the {{ law.short }} ({{ law.citation }}){% endif %} asking {{ broker.name }} to delete my personal information and stop selling or sharing it. The response deadline was {{ deadline }}. {% if replies %}The business replied but has not completed the request.{% else %}The business has not responded.{% endif %} I sent {{ followups }} follow-up message{{ "s" if followups != 1 }}, including a final notice.
+
+Timeline:
+{% for e in timeline %}- {{ e.at }}: {{ e.summary }}
+{% endfor %}
+
+What I'm asking the regulator to do:
+Investigate the failure to honor my request and require {{ broker.name }} to delete my personal information and stop selling it.
+
+Complainant:
+{{ person.full_name }}
+{% for e in person.emails[:1] %}{{ e }}
+{% endfor %}

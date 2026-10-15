@@ -1,0 +1,20 @@
+{% import "_macros.j2" as m %}
+To the privacy team at {{ broker.name }}:
+
+{{ m.agent_line(agent) }}I am a California resident. Under the {{ law.title }} ({{ law.citation }}), I request that you:
+
+1. Delete all personal information you have collected about me, and tell your service providers, contractors and any third parties you sold or shared it with to delete it too (Cal. Civ. Code § 1798.105).
+2. Stop selling and sharing my personal information, effective immediately (§ 1798.120). This is an opt-out of sale and sharing, which does not require identity verification.
+3. Limit your use and disclosure of any sensitive personal information about me (§ 1798.121).
+
+If you are a data broker registered with the California Privacy Protection Agency, the Delete Act (Cal. Civ. Code § 1798.99.80 et seq.) also obliges you to delete my data and keep it deleted.
+
+Use the details below only to find and delete my records:
+
+{{ m.identity(person) }}{{ m.listing(listing_url) }}
+
+The CCPA requires you to respond within 45 days of receiving this request, which is by {{ deadline }}. Please don't make me create an account, pay a fee, or send government ID to process it. If you need more information to locate my records, tell me exactly what you need and why.
+
+Please confirm in writing once you have completed the deletion and opt-out.
+
+{{ m.signoff(sender, reference) }}

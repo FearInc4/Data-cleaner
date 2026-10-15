@@ -1,0 +1,14 @@
+{% import "_macros.j2" as m %}
+To the privacy team at {{ broker.name }}:
+
+On {{ original_date }} I sent you a request to delete my personal information and stop selling or sharing it{% if law.short and law.key not in ("us_none", "generic") %}, under the {{ law.short }}{% endif %} (reference {{ reference }}). I have not received a response confirming that the request has been completed.
+
+{% if followup_number == 1 %}Please confirm that you received it and tell me when it will be done.{% else %}This is follow-up #{{ followup_number }}. {% if days_left > 0 %}You have {{ days_left }} day{{ "s" if days_left != 1 }} left to respond{% if law.key not in ("us_none", "generic") %} under the law{% endif %} (deadline: {{ deadline }}).{% else %}The deadline of {{ deadline }} has passed.{% endif %} Please complete the request and confirm in writing.{% endif %}
+
+
+My original request is quoted below for your convenience.
+
+{{ m.signoff(sender, reference) }}
+
+----- Original request ({{ original_date }}) -----
+{{ original_body }}

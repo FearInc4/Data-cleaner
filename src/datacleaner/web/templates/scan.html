@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import finding_state %}
+{% set refresh = 6 if running else None %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Find my data: {{ profile.label }}</h1>
+    <p class="muted">Where {{ profile.short_name }} shows up on people-search sites and the open web.</p></div>
+  <div class="actions">
+    <form method="post" action="/scan/run" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="profile_id" value="{{ profile.id }}"><input type="hidden" name="kind" value="brokers">
+      <button class="primary" type="submit" {{ 'disabled' if 'brokers' in running }}>{{ "Checking sites…" if 'brokers' in running else "Check people-search sites" }}</button></form>
+    <form method="post" action="/scan/run" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="profile_id" value="{{ profile.id }}"><input type="hidden" name="kind" value="search">
+      <button type="submit" {{ 'disabled' if 'search' in running or not has_search }} title="{{ '' if has_search else 'Add SearXNG or Brave in Settings' }}">{{ "Searching…" if 'search' in running else "Search the web" }}</button></form>
+  </div>
+</div>
+{% if not has_search %}<div class="callout">Web search needs a backend. The Docker setup includes SearXNG (self-hosted, no account). Otherwise add a Brave Search API key in <a href="/settings">Settings</a>.</div>{% endif %}
+
+<div class="grid">
+  {% for kind, label in [("brokers", "People-search check"), ("search", "Web search")] %}
+  <div class="card">
+    <h3>{{ label }}</h3>
+    {% set run = runs.get(kind) %}
+    {% if kind in running %}<span class="badge info">running…</span>
+    {% elif run %}<small class="muted">Last run {{ run.started_at|datetime }}</small><br>
+      {% for k, v in run.summary.items() if k != "errors" and k != "provider" %}<span class="badge">{{ k|label }}: {{ v }}</span> {% endfor %}
+      {% if run.summary.get("errors") %}<details><summary>{{ run.summary.errors|length }} error(s)</summary><pre>{{ run.summary.errors|join("\n") }}</pre></details>{% endif %}
+    {% else %}<small class="muted">Not run yet.</small>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="actions"><span class="muted">Show:</span>
+  <a class="btn small {{ 'primary' if show == 'active' }}" href="/scan?show=active">Needs action</a>
+  <a class="btn small {{ 'primary' if show == 'all' }}" href="/scan?show=all">Everything</a>
+</div>
+
+<h2>People-search sites</h2>
+<div class="card table-wrap">
+  <table>
+    <tr><th>Site</th><th>Result</th><th>Matched</th><th>Last checked</th><th></th></tr>
+    {% for f in listings %}
+    <tr>
+      <td>{% if f.broker %}<a href="/brokers/{{ f.broker.slug }}">{{ f.broker.name }}</a>{% else %}{{ f.source }}{% endif %}</td>
+      <td>{{ finding_state(f) }}{% if f.snippet %}<br><small class="muted">{{ f.snippet }}</small>{% endif %}</td>
+      <td>{{ f.matched_fields|join(", ") }}</td>
+      <td class="nowrap">{{ f.last_seen|date }}</td>
+      <td class="actions">
+        {% if f.url %}<a class="btn small" href="{{ f.url|safe_url }}" target="_blank" rel="noopener noreferrer">Open ↗</a>{% endif %}
+        {% if f.status in ("new",) %}
+        <form method="post" action="/findings/{{ f.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/scan">
+          <button class="small primary" name="action" value="remove" type="submit">Request removal</button>
+          <button class="small" name="action" value="dismiss" type="submit" title="Not me / nothing there">Not me</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Nothing yet. Run "Check people-search sites".</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2>Web search results</h2>
+<div class="card table-wrap">
+  <table>
+    <tr><th>Page</th><th>Matched</th><th>Score</th><th></th></tr>
+    {% for f in results %}
+    <tr>
+      <td><a href="{{ f.url|safe_url }}" target="_blank" rel="noopener noreferrer">{{ f.title or f.url|host }}</a> {{ finding_state(f) }}<br><small class="muted">{{ f.url|host }}{% if f.broker %} · known broker: <a href="/brokers/{{ f.broker.slug }}">{{ f.broker.name }}</a>{% endif %}</small>
+        {% if f.snippet %}<br><small>{{ f.snippet[:240] }}</small>{% endif %}</td>
+      <td>{{ f.matched_fields|join(", ") }}</td>
+      <td>{{ (f.score * 100)|round|int }}%</td>
+      <td class="actions">
+        {% if f.status == "new" %}
+        <form method="post" action="/findings/{{ f.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/scan">
+          {% if f.broker %}<button class="small primary" name="action" value="remove" type="submit">Request removal</button>{% endif %}
+          <button class="small" name="action" value="removed" type="submit">Handled</button>
+          <button class="small" name="action" value="dismiss" type="submit">Not me</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">No web results yet.</td></tr>
+    {% endfor %}
+  </table>
+  <p class="help">For pages that aren't data brokers: ask the site owner to remove it, then use Google's <a href="https://myactivity.google.com/results-about-you" target="_blank" rel="noopener">Results about you</a> or Bing's <a href="https://www.bing.com/webmaster/tools/contentremoval" target="_blank" rel="noopener">content removal</a> to drop the outdated search result.</p>
+</div>
+{% endblock %}

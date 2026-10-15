@@ -1,0 +1,22 @@
+{% import "_macros.j2" as m %}
+To the Privacy Officer at {{ broker.name }}:
+
+{{ m.agent_line(agent) }}{% if law.extra.get("quebec") %}I am a resident of Quebec. Under the {{ law.title }} ({{ law.citation }}) and the Personal Information Protection and Electronic Documents Act (PIPEDA), I request that you:
+
+1. Delete all personal information about me (section 28) and stop disseminating it, including de-indexing any links to it (section 28.1).
+2. Withdraw my consent to any collection, use or disclosure of my personal information, including for marketing.
+3. Tell me what personal information you hold about me, where you got it, and who you have disclosed it to (sections 27 and 8).
+
+{% else %}Under the Personal Information Protection and Electronic Documents Act (PIPEDA, {{ law.citation }}), I request that you:
+
+1. Accept my withdrawal of consent to the collection, use and disclosure of my personal information (Schedule 1, Principle 4.3.8), including for marketing and for sale or licensing to others.
+2. Destroy or erase any personal information about me that you no longer need (Principle 4.5.3), and remove any public listing about me.
+3. Tell me what personal information you hold about me, where you got it, and who you have disclosed it to (Principle 4.9 and section 8).
+
+{% endif %}Use the details below only to locate my records:
+
+{{ m.identity(person) }}{{ m.listing(listing_url) }}
+
+The law requires you to respond within 30 days, which is by {{ deadline }}. If you don't respond, I will complain to {{ law.regulators[0].name }}.
+
+{{ m.signoff(sender, reference) }}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{% if profile %}Cleaning up: {{ profile.label }}{% else %}Welcome to Data Cleaner{% endif %}</h1>
+    <p class="muted">Find where your data lives, demand it's deleted, and keep pestering until it is.</p>
+  </div>
+  <form method="post" action="/settings/tick" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button type="submit" title="Send queued mail, read replies, queue due follow-ups">Run scheduler now</button>
+  </form>
+</div>
+
+{% if not (setup.profile and setup.email and setup.requests) %}
+<div class="card">
+  <h2>Get started</h2>
+  <ul class="checklist">
+    <li class="{{ 'done' if setup.profile }}"><span>{{ '✅' if setup.profile else '1.' }}</span><div><div class="title"><a href="/profiles/new">Add yourself</a> (or someone who authorized you)</div><small>Name, emails, phones, current and past addresses. Encrypted on this machine.</small></div></li>
+    <li class="{{ 'done' if setup.email }}"><span>{{ '✅' if setup.email else '2.' }}</span><div><div class="title"><a href="/settings">Connect an email account</a> to send requests</div><small>A dedicated alias is best. Use an app password for Gmail/Outlook/iCloud/Fastmail.</small></div></li>
+    <li class="{{ 'done' if setup.imap }}"><span>{{ '✅' if setup.imap else '3.' }}</span><div><div class="title"><a href="/settings">Connect IMAP</a> so replies are tracked automatically</div><small>Lets Data Cleaner spot confirmations, click verification links, and stop nagging brokers that complied.</small></div></li>
+    <li class="{{ 'done' if setup.requests }}"><span>{{ '✅' if setup.requests else '4.' }}</span><div><div class="title"><a href="/requests/new">Pick brokers and create removal requests</a></div><small>Starts with the high-impact people-search sites.</small></div></li>
+    <li class="{{ 'done' if setup.search }}"><span>{{ '✅' if setup.search else '5.' }}</span><div><div class="title"><a href="/settings">Add a search backend</a> to scan the web for you</div><small>SearXNG ships with the Docker setup; Brave Search API is the alternative.</small></div></li>
+  </ul>
+</div>
+{% endif %}
+
+{% if show_drop %}
+<div class="callout">
+  <strong>California resident?</strong> Use the state's free <a href="{{ drop_url|safe_url }}" rel="noopener" target="_blank">DROP platform</a>. One verified request reaches every registered data broker, and they must re-check it every 45 days.
+  Data Cleaner still covers the sites that aren't registered (or ignore DROP).
+</div>
+{% endif %}
+
+{% if profile %}
+<div class="grid">
+  <div class="card">
+    <div class="stat">{{ done }} / {{ total }}</div>
+    <div class="stat-label">removals confirmed</div>
+    <progress class="bar" value="{{ done }}" max="{{ total or 1 }}">{{ done }} of {{ total }}</progress>
+    <a href="/requests">All requests →</a>
+  </div>
+  <div class="card">
+    <div class="stat">{{ (counts.get('sent', 0) + counts.get('acknowledged', 0) + counts.get('queued', 0)) }}</div>
+    <div class="stat-label">in progress (being followed up automatically)</div>
+    {% if counts.get('overdue') %}<p><span class="badge err">{{ counts.get('overdue') }} overdue</span> brokers that missed their deadline</p>{% endif %}
+  </div>
+  <div class="card">
+    <div class="stat">{{ findings_by_kind.get('listing', 0) + findings_by_kind.get('search', 0) }}</div>
+    <div class="stat-label">new places your data appears</div>
+    <a href="/scan">Review →</a>
+  </div>
+  <div class="card">
+    <div class="stat">{{ findings_by_kind.get('breach', 0) + findings_by_kind.get('paste', 0) + findings_by_kind.get('code', 0) }}</div>
+    <div class="stat-label">new breach / paste exposures</div>
+    <a href="/breaches">Review →</a>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Waiting on you</h2>
+    {% if needs %}
+    <table>
+      {% for r in needs %}
+      <tr><td><a href="/requests/{{ r.id }}">{{ r.broker.name }}</a></td><td>{{ status_badge(r.status) }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Nothing right now. 🎉</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Coming up</h2>
+    {% if upcoming %}
+    <table>
+      {% for r in upcoming %}
+      <tr><td><a href="/requests/{{ r.id }}">{{ r.broker.name }}</a></td><td class="nowrap">{{ r.next_action_at|date }}</td><td class="muted">{{ "follow-up" if r.next_action_at > now else "due now" }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">No follow-ups scheduled yet.</p>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Recent activity</h2>
+  {% if recent %}
+  <ul class="timeline">
+    {% for e in recent %}
+    <li class="{{ e.direction }}"><small class="muted">{{ e.at|datetime }}</small><br><a href="/requests/{{ e.request_id }}">{{ e.request.broker.name }}</a>: {{ e.summary }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No activity yet.</p>{% endif %}
+  <p class="muted"><small>Scheduler last ran: {{ last_tick or "not yet" }}</small></p>
+</div>
+{% endblock %}

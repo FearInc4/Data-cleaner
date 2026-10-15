@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, priority %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Removal requests{% if profile %}: {{ profile.label }}{% endif %}</h1>
+    <p class="muted">Email requests are sent and followed up automatically. Form requests need you to submit once; after that they're tracked the same way.</p></div>
+  <div class="actions">
+    {% if profile %}<a class="btn" href="/requests/new?profile_id={{ profile.id }}">Add brokers</a>{% endif %}
+    {% if drafts and profile %}
+    <form method="post" action="/requests/approve-all" class="inline" data-confirm="Send all {{ drafts }} draft email request(s) now?">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="profile_id" value="{{ profile.id }}">
+      <button class="primary" type="submit">Send all {{ drafts }} email drafts</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+<div class="actions card">
+  <span class="muted">Show:</span>
+  {% for key, label in [("", "All"), ("needs_you", "Waiting on you"), ("open", "In progress"), ("overdue", "Overdue"), ("completed", "Completed")] %}
+  <a class="btn small {{ 'primary' if status == key }}" href="/requests?status={{ key }}">{{ label }}</a>
+  {% endfor %}
+</div>
+<div class="card table-wrap">
+  <table>
+    <tr><th></th><th>Broker</th><th>Method</th><th>Status</th><th>Sent</th><th>Deadline</th><th>Next action</th><th>Follow-ups</th></tr>
+    {% for r in reqs %}
+    <tr>
+      <td>{{ priority(r.broker.priority) }}</td>
+      <td><a href="/requests/{{ r.id }}">{{ r.broker.name }}</a></td>
+      <td>{{ r.method }}</td>
+      <td>{{ status_badge(r.status) }}{% if r.paused %} <span class="badge">paused</span>{% endif %}</td>
+      <td class="nowrap">{{ r.first_sent_at|date }}</td>
+      <td class="nowrap">{{ r.due_at|date }}</td>
+      <td class="nowrap">{{ r.next_action_at|date }}</td>
+      <td>{{ r.followup_count }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">No requests here yet.{% if profile %} <a href="/requests/new?profile_id={{ profile.id }}">Pick brokers →</a>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
