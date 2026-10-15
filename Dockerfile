@@ -13,7 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app/src \
     DATACLEANER_DATA_DIR=/data \
     DATACLEANER_HOST=0.0.0.0 \
-    DATACLEANER_PORT=8080
+    DATACLEANER_PORT=25326
 
 # Pick up Debian security fixes released after the base image was built.
 RUN apt-get update \
@@ -32,7 +32,7 @@ COPY --chown=root:root LICENSE README.md ./
 
 USER datacleaner
 VOLUME ["/data"]
-EXPOSE 8080
+EXPOSE 25326
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
-  CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=4).status == 200 else 1)"]
+  CMD ["python", "-c", "import os,sys,urllib.request; port = os.environ.get('DATACLEANER_PORT', '25326'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=4).status == 200 else 1)"]
 CMD ["python", "-m", "datacleaner", "serve"]

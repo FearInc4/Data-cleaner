@@ -23,7 +23,7 @@ class Config:
     database_url: str | None = field(default_factory=lambda: (os.environ.get("DATACLEANER_DATABASE_URL") or None))
     secret_key: str | None = field(default_factory=lambda: (os.environ.get("DATACLEANER_SECRET_KEY") or None))
     host: str = field(default_factory=lambda: os.environ.get("DATACLEANER_HOST", "127.0.0.1"))
-    port: int = field(default_factory=lambda: int(os.environ.get("DATACLEANER_PORT", "8080")))
+    port: int = field(default_factory=lambda: int(os.environ.get("DATACLEANER_PORT", "25326")))
     # Run the scheduler loop inside the web process. Turn off if you drive
     # `datacleaner tick` from cron/systemd instead.
     scheduler_enabled: bool = field(default_factory=lambda: _bool(os.environ.get("DATACLEANER_SCHEDULER"), True))
