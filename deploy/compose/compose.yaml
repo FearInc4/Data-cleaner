@@ -1,0 +1,84 @@
+# Data Cleaner from the published image, with a private SearXNG for web search.
+#
+# Use it as-is (put it in an empty folder next to a .env file, then
+# `docker compose up -d`), or copy the two services, the config and the volume
+# into your own stack. Full guide: docs/docker.md
+#
+# First start: `docker compose logs datacleaner` prints a one-time setup link.
+
+services:
+  datacleaner:
+    image: ghcr.io/fearinc4/data-cleaner:${DATACLEANER_VERSION:-latest}
+    container_name: datacleaner
+    restart: unless-stopped
+    ports:
+      # Localhost only. Behind a reverse proxy on the same Docker network you can drop this.
+      - "127.0.0.1:${DATACLEANER_PORT:-25326}:${DATACLEANER_PORT:-25326}"
+    environment:
+      DATACLEANER_PORT: ${DATACLEANER_PORT:-25326}
+      # The address you open in your browser, e.g. https://privacy.example.com (needed behind a proxy).
+      DATACLEANER_BASE_URL: ${DATACLEANER_BASE_URL:-}
+      # Keeps the encryption key out of the data volume. Generate: openssl rand -base64 48
+      DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY:-}
+      # Your reverse proxy's address or network, so sign-in limits see real client IPs.
+      DATACLEANER_TRUSTED_PROXIES: ${DATACLEANER_TRUSTED_PROXIES:-}
+      DATACLEANER_SEARXNG_URL: http://searxng:8080
+      DATACLEANER_GOOGLE_CLIENT_ID: ${DATACLEANER_GOOGLE_CLIENT_ID:-}
+      DATACLEANER_GOOGLE_CLIENT_SECRET: ${DATACLEANER_GOOGLE_CLIENT_SECRET:-}
+      DATACLEANER_MICROSOFT_CLIENT_ID: ${DATACLEANER_MICROSOFT_CLIENT_ID:-}
+      DATACLEANER_MICROSOFT_CLIENT_SECRET: ${DATACLEANER_MICROSOFT_CLIENT_SECRET:-}
+    volumes:
+      - datacleaner-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    pids_limit: 256
+    depends_on:
+      - searxng
+
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: datacleaner-searxng
+    restart: unless-stopped
+    # No published ports: only Data Cleaner talks to it.
+    configs:
+      - source: searxng-settings
+        target: /etc/searxng/settings.yml
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      # Listen on IPv4: the image's default (IPv6 only) fails on hosts where Docker has IPv6 off.
+      GRANIAN_HOST: 0.0.0.0
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-to-a-long-random-string}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+
+configs:
+  searxng-settings:
+    content: |
+      use_default_settings: true
+      general:
+        instance_name: "datacleaner-search"
+      server:
+        secret_key: "overridden-by-SEARXNG_SECRET"
+        limiter: false
+        image_proxy: false
+      search:
+        safe_search: 0
+        formats: [html, json]
+      ui:
+        static_use_hash: true
+
+volumes:
+  datacleaner-data:

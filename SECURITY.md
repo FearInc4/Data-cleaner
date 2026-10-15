@@ -27,6 +27,8 @@ Please **don't open a public issue**. Use GitHub's private vulnerability reporti
 | Browser and proxy caching | `Cache-Control: no-store` on every page. |
 | Mailbox access abuse | Least-privilege scopes (`gmail.send` + `gmail.readonly`; Graph `Mail.Send` + `Mail.Read`). Tokens are encrypted, Google tokens are revoked on disconnect, and "Erase everything" wipes all data and revokes access. |
 | Malicious or compromised dependency release | Every dependency is pinned by version **and sha256 hash** (`requirements.lock`, installed with `--require-hashes`). The base image is pinned by digest. Dependabot proposes updates weekly. |
+| Tampered or look-alike container image | Images are built and published only by this repository's GitHub Actions, scanned with Trivy before they're pushed, and signed with Sigstore (keyless). Each carries an SBOM and build provenance. `docs/docker.md` shows how to verify the signature with `cosign verify`. |
+| Spoofed client IP behind a reverse proxy | `X-Forwarded-*` headers are trusted only from `DATACLEANER_TRUSTED_PROXIES` (loopback by default), so sign-in rate limits can't be dodged with a forged header. |
 | Known CVEs | CI runs `pip-audit` (PyPI + OSV advisories), `bandit`, and a Trivy image scan that fails on fixable HIGH/CRITICAL issues, on every push and weekly. |
 | Container breakout / lateral movement | Runs as an unprivileged user, with a read-only root filesystem, all capabilities dropped, `no-new-privileges`, memory/pid limits, and only localhost published. pip is removed from the runtime image. |
 

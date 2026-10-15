@@ -47,10 +47,15 @@ services:
     image: docker.io/searxng/searxng:latest
     restart: unless-stopped
     # No published ports: only Data Cleaner can reach it.
-    volumes:
-      - ./deploy/searxng:/etc/searxng:rw
+    configs:
+      - source: searxng-settings
+        target: /etc/searxng/settings.yml
     environment:
+      # Don't let the image chown files from this checkout.
+      FORCE_OWNERSHIP: "false"
       SEARXNG_BASE_URL: http://searxng:8080/
+      # Listen on IPv4: the image's default (IPv6 only) fails on hosts where Docker has IPv6 off.
+      GRANIAN_HOST: 0.0.0.0
       SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-to-a-long-random-string}
     security_opt:
       - no-new-privileges:true
@@ -61,6 +66,10 @@ services:
       - SETGID
       - SETUID
     mem_limit: 512m
+
+configs:
+  searxng-settings:
+    file: ./deploy/searxng/settings.yml
 
 volumes:
   datacleaner-data:
