@@ -25,7 +25,7 @@ def _done(settings: Settings) -> set[str]:
 
 
 @router.get("")
-def spam_page(request: Request, number: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+def spam_page(request: Request, number: str = "", db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     profile = selected_profile(request, db, None)
     settings = Settings(db)
     items = items_for(profile.country if profile else "US", profile.region if profile else None)
@@ -40,7 +40,7 @@ def spam_page(request: Request, number: str = "", db: Session = Depends(get_db),
 
 
 @router.post("/checklist")
-def checklist_toggle(request: Request, item_id: str = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def checklist_toggle(request: Request, item_id: str = Form(...), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     settings = Settings(db)
     done = _done(settings)
     done.symmetric_difference_update({item_id})
@@ -50,7 +50,7 @@ def checklist_toggle(request: Request, item_id: str = Form(...), db: Session = D
 
 @router.post("/dnc/fetch")
 def dnc_fetch(request: Request, state: str = Form(""), area_code: str = Form(""), days: int = Form(30),
-              db: Session = Depends(get_db), user: User = Depends(current_user)):
+              db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     settings = Settings(db)
     if not settings.datagov_api_key:
         flash(request, "Add a free api.data.gov key in Settings, or upload an FTC CSV instead.", "error")
@@ -67,7 +67,7 @@ def dnc_fetch(request: Request, state: str = Form(""), area_code: str = Form("")
 
 
 @router.post("/dnc/upload")
-async def dnc_upload(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+async def dnc_upload(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     data = await file.read()
     complaints = dnc.parse_csv(data)
     n = dnc.ingest(db, complaints)
@@ -76,7 +76,7 @@ async def dnc_upload(request: Request, file: UploadFile = File(...), db: Session
 
 
 @router.get("/blocklist.vcf")
-def blocklist(min_reports: int = 3, limit: int = 1000, state: str = "", db: Session = Depends(get_db),
+def blocklist(min_reports: int = 3, limit: int = 1000, state: str = "", db: Session = Depends(get_db, scope="function"),
               user: User = Depends(current_user)):
     rows = dnc.top_numbers(db, min_reports=max(1, min_reports), limit=max(1, min(limit, 5000)), state=state.upper() or None)
     vcf = dnc.to_vcard([r.number for r in rows])
@@ -84,7 +84,7 @@ def blocklist(min_reports: int = 3, limit: int = 1000, state: str = "", db: Sess
 
 
 @router.post("/unsubscribe/scan")
-def unsub_scan(request: Request, days: int = Form(60), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def unsub_scan(request: Request, days: int = Form(60), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     try:
         n = unsubscribe.scan_inbox(db, days=max(1, min(days, 365)))
     except Exception as exc:
@@ -95,7 +95,7 @@ def unsub_scan(request: Request, days: int = Form(60), db: Session = Depends(get
 
 
 @router.post("/unsubscribe")
-async def unsub_selected(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+async def unsub_selected(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     form = await request.form()
     action = form.get("action", "unsubscribe")
     ids = [int(v) for v in form.getlist("sender_id") if str(v).isdigit()]

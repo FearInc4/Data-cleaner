@@ -53,18 +53,18 @@ def _form_ctx(profile: Profile | None) -> dict:
 
 
 @router.get("")
-def list_profiles(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def list_profiles(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     profiles = db.scalars(select(Profile).order_by(Profile.id)).all()
     return render(request, db, "profiles.html", profiles=profiles, resolve_law=resolve_law)
 
 
 @router.get("/new")
-def new_profile(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def new_profile(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     return render(request, db, "profile_form.html", **_form_ctx(None))
 
 
 @router.get("/{profile_id}")
-def edit_profile(profile_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def edit_profile(profile_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(404)
@@ -99,7 +99,7 @@ def save_profile(
     attest: bool = Form(False),
     agent_authorization_on_file: bool = Form(False),
     monitoring_enabled: bool = Form(False),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(current_user),
 ):
     if not attest:
@@ -143,7 +143,7 @@ def save_profile(
 
 
 @router.post("/{profile_id}/delete")
-def delete_profile(profile_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def delete_profile(profile_id: int, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     profile = db.get(Profile, profile_id)
     if profile:
         db.delete(profile)
@@ -153,7 +153,7 @@ def delete_profile(profile_id: int, request: Request, db: Session = Depends(get_
 
 
 @router.get("/{profile_id}/authorization.txt")
-def authorization_letter(profile_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def authorization_letter(profile_id: int, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     profile = db.get(Profile, profile_id)
     if not profile:
         raise HTTPException(404)

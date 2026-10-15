@@ -63,7 +63,7 @@ def _latest_runs(db: Session, profile_id: int) -> dict[str, ScanRun]:
 # --- exposure scan -----------------------------------------------------------------
 
 @router.get("/scan")
-def scan_page(request: Request, profile_id: int | None = None, show: str = "active", db: Session = Depends(get_db),
+def scan_page(request: Request, profile_id: int | None = None, show: str = "active", db: Session = Depends(get_db, scope="function"),
               user: User = Depends(current_user)):
     profile = selected_profile(request, db, profile_id)
     if not profile:
@@ -81,7 +81,7 @@ def scan_page(request: Request, profile_id: int | None = None, show: str = "acti
 
 
 @router.post("/scan/run")
-def scan_run(request: Request, profile_id: int = Form(...), kind: str = Form(...), db: Session = Depends(get_db),
+def scan_run(request: Request, profile_id: int = Form(...), kind: str = Form(...), db: Session = Depends(get_db, scope="function"),
              user: User = Depends(current_user)):
     settings = Settings(db)
     if kind == "search":
@@ -100,7 +100,7 @@ def scan_run(request: Request, profile_id: int = Form(...), kind: str = Form(...
 
 @router.post("/findings/{finding_id}")
 def finding_action(finding_id: int, request: Request, action: str = Form(...), back: str = Form("/scan"),
-                   db: Session = Depends(get_db), user: User = Depends(current_user)):
+                   db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     f = db.get(Finding, finding_id)
     if not f:
         raise HTTPException(404)
@@ -128,7 +128,7 @@ def finding_action(finding_id: int, request: Request, action: str = Form(...), b
 # --- breaches ------------------------------------------------------------------------
 
 @router.get("/breaches")
-def breaches_page(request: Request, profile_id: int | None = None, db: Session = Depends(get_db),
+def breaches_page(request: Request, profile_id: int | None = None, db: Session = Depends(get_db, scope="function"),
                   user: User = Depends(current_user)):
     profile = selected_profile(request, db, profile_id)
     if not profile:
@@ -144,7 +144,7 @@ def breaches_page(request: Request, profile_id: int | None = None, db: Session =
 
 
 @router.post("/breaches/run")
-def breaches_run(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def breaches_run(request: Request, profile_id: int = Form(...), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     if not providers_from_settings(Settings(db)):
         flash(request, "Turn on at least one breach provider in Settings.", "error")
         return redirect("/settings")
@@ -155,7 +155,7 @@ def breaches_run(request: Request, profile_id: int = Form(...), db: Session = De
 
 
 @router.post("/breaches/password")
-def password_check(request: Request, password: str = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def password_check(request: Request, password: str = Form(...), db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     try:
         count = pwned_count(password)
     except Exception as exc:

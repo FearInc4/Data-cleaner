@@ -16,7 +16,7 @@ router = APIRouter(prefix="/brokers")
 
 @router.get("")
 def list_brokers(request: Request, q: str = "", category: str = "", method: str = "", source: str = "",
-                 db: Session = Depends(get_db), user: User = Depends(current_user)):
+                 db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     stmt = select(Broker).where(Broker.active.is_(True))
     if q:
         like = f"%{q.strip()}%"
@@ -35,13 +35,13 @@ def list_brokers(request: Request, q: str = "", category: str = "", method: str 
 
 
 @router.get("/import")
-def import_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def import_page(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     return render(request, db, "broker_import.html")
 
 
 @router.post("/import")
 async def import_submit(request: Request, registry: str = Form(...), file: UploadFile = File(...),
-                        db: Session = Depends(get_db), user: User = Depends(current_user)):
+                        db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     data = await file.read()
     if len(data) > 20 * 1024 * 1024:
         flash(request, "That file is too large (20 MB max).", "error")
@@ -56,14 +56,14 @@ async def import_submit(request: Request, registry: str = Form(...), file: Uploa
 
 
 @router.get("/new")
-def new_broker(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def new_broker(request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     return render(request, db, "broker_new.html", categories=BrokerCategory.ALL)
 
 
 @router.post("/new")
 def create_broker(request: Request, name: str = Form(...), website: str = Form(""), privacy_email: str = Form(""),
                   opt_out_url: str = Form(""), category: str = Form(BrokerCategory.OTHER), notes: str = Form(""),
-                  db: Session = Depends(get_db), user: User = Depends(current_user)):
+                  db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     slug = re.sub(r"[^a-z0-9]+", "-", (registrable_domain(website) if website else name).lower()).strip("-")[:100]
     if db.scalars(select(Broker).where(Broker.slug == slug)).first():
         flash(request, "A broker with that name/domain already exists.", "error")
@@ -85,7 +85,7 @@ def create_broker(request: Request, name: str = Form(...), website: str = Form("
 
 
 @router.get("/{slug}")
-def broker_detail(slug: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def broker_detail(slug: str, request: Request, db: Session = Depends(get_db, scope="function"), user: User = Depends(current_user)):
     broker = db.scalars(select(Broker).where(Broker.slug == slug)).first()
     if not broker:
         raise HTTPException(404)
