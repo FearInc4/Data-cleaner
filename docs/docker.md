@@ -334,6 +334,8 @@ If your platform's Compose is older than 2.23.1 and rejects the inline `configs:
 | SearXNG restarts with `Address family not supported by protocol` | Add `GRANIAN_HOST: 0.0.0.0` to the `searxng` service. |
 | Web search finds nothing | Check `docker compose logs searxng`. Your SearXNG must allow `json` (see above). |
 | Google says `redirect_uri_mismatch` | The OAuth app's redirect URI must be `DATACLEANER_BASE_URL` + `/auth/google/callback`. |
+| Google says `Access blocked: … has not completed the Google verification process` | Your Google app is still in Testing. Publish it (Settings → Sign-in apps, steps 4 and 5), or add your address under **Test users** on [Audience](https://console.cloud.google.com/auth/audience). |
+| Google won't accept the redirect URI (`must use https` / `must end with a public top-level domain`) | Google allows only `https://` or `http://localhost`. Open Data Cleaner at `http://localhost:25326` (on the server, or through `ssh -L 25326:localhost:25326 you@server`), or put it behind HTTPS. |
 | Lost the setup link | `docker compose exec datacleaner cat /data/setup-token`, then open `<your address>/setup?token=<that token>`. It only works until the first account exists. |
 | Port 25326 is taken | Change the left side of `ports:` (e.g. `127.0.0.1:8099:25326`), or set `DATACLEANER_PORT`. |
 | Is it healthy? | `docker inspect -f '{{.State.Health.Status}}' datacleaner` |

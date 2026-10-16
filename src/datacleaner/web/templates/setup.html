@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import provider_buttons %}
+{% from "_macros.html" import provider_buttons, provider_icon, oauth_app_steps, redirect_warning %}
 {% block content %}
 <div class="auth-box card">
   <h1>Welcome to Data Cleaner</h1>
@@ -32,8 +32,16 @@
   {% if not providers %}
   <details class="advanced">
     <summary>Want "Sign in with Google / Microsoft" instead?</summary>
-    <p class="help">Each install uses its own sign-in app so no third party sits between you and your mailbox. Setting one up takes about 5 minutes; the steps are in the README ("Sign in with Google / Microsoft"). Use this redirect URI:</p>
-    <p><code>{{ base_url }}/auth/google/callback</code> or <code>{{ base_url }}/auth/microsoft/callback</code></p>
+    <p class="help">Each install uses its own sign-in app so no third party sits between you and your mailbox. Setting one up takes about 5 minutes. You can also do this later under Settings.</p>
+    {% if not redirect_ok %}{{ redirect_warning(base_url, port) }}{% endif %}
+    <details>
+      <summary>{{ provider_icon("google") }} Steps for Google (Gmail)</summary>
+      {{ oauth_app_steps("google", base_url ~ "/auth/google/callback") }}
+    </details>
+    <details>
+      <summary>{{ provider_icon("microsoft") }} Steps for Microsoft (Outlook)</summary>
+      {{ oauth_app_steps("microsoft", base_url ~ "/auth/microsoft/callback") }}
+    </details>
     <form method="post" action="/setup/oauth-app">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <label for="provider">Provider</label>

@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 import jwt
@@ -146,6 +146,12 @@ def credentials(provider: Provider, settings, config) -> ClientCreds | None:
     if cid and secret:
         return ClientCreds(cid.strip(), secret.strip())
     return None
+
+
+def redirect_allowed(base_url: str) -> bool:
+    """Google and Microsoft accept redirect URIs on https://, or plain http:// only for localhost."""
+    url = urlparse(base_url)
+    return url.scheme == "https" or (url.scheme == "http" and url.hostname in ("localhost", "127.0.0.1", "::1"))
 
 
 def redirect_uri(base_url: str, provider: Provider) -> str:

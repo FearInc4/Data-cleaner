@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy import func, select
@@ -58,8 +59,10 @@ def setup_page(request: Request, token: str | None = None, db: Session = Depends
             flash(request, "That setup token isn't right. Copy it again from the server log (or the setup-token file in the data directory).", "error")
         return redirect("/setup")  # drop the token from the address bar and history
     app_state.ensure_setup_token(db)
+    base_url = _base_url(request)
     return render(request, db, "setup.html", setup_ok=bool(request.session.get("setup_ok")),
-                  providers=oauth_options(db), base_url=_base_url(request))
+                  providers=oauth_options(db), base_url=base_url, redirect_ok=oauth.redirect_allowed(base_url),
+                  port=urlparse(base_url).port or app_state.get_config().port)
 
 
 def _base_url(request: Request) -> str:
