@@ -74,11 +74,14 @@ The extension only fills forms on the broker's own website, over HTTPS. It fetch
 Each install uses **its own** OAuth app, so your mailbox access belongs to you. No shared developer account sits in the middle, and there's nothing for anyone to sell. It's a one-time setup of about 5 minutes. The app shows these same steps, with your exact redirect URI and copy buttons, under **Settings → Sign-in apps**.
 
 **Google (Gmail / Google Workspace)**
-1. In [Google Cloud Console](https://console.cloud.google.com/projectcreate), create a project and enable the **Gmail API**.
-2. Go to **Google Auth Platform**. Under Branding, set an app name and your email. Under Audience, choose External and add yourself as a test user. Under Data Access, add the scopes `gmail.send` and `gmail.readonly`.
-3. Under **Clients**, create a **Web application** client with the redirect URI `http://localhost:25326/auth/google/callback` (or your `DATACLEANER_BASE_URL` + `/auth/google/callback`).
-4. Paste the client ID and secret on the setup page or in Settings, or set `DATACLEANER_GOOGLE_CLIENT_ID` / `_SECRET` in `.env`.
-5. Recommended: **Publish** the app. Apps left in "Testing" must be reconnected every 7 days. You'll see an "unverified app" notice when connecting, which is normal for a private app you made yourself.
+1. **Create a project:** open [New project](https://console.cloud.google.com/projectcreate), name it "Data Cleaner" and press Create. Check that the project picker at the top shows it.
+2. **Turn on Gmail:** open the [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and press Enable.
+3. **Describe your app:** open [Google Auth Platform](https://console.cloud.google.com/auth/overview) and press Get started. Use "Data Cleaner" as the name and your own address for both emails, and choose **External**.
+4. **Publish it:** on [Audience](https://console.cloud.google.com/auth/audience), press **Publish app**, then Confirm. If you skip this, Google blocks sign-in with "Access blocked: … has not completed the Google verification process", and an app left in Testing has to be reconnected every 7 days. (If you'd rather stay in Testing, add yourself under Test users.)
+5. **Allow mail access:** on [Data Access](https://console.cloud.google.com/auth/scopes), press Add or remove scopes. Paste `https://www.googleapis.com/auth/gmail.send` and `https://www.googleapis.com/auth/gmail.readonly` into **Manually add scopes**, then press Add to table, Update and Save.
+6. **Create the sign-in client:** open [Create client](https://console.cloud.google.com/auth/clients/create). Choose **Web application** and add the redirect URI `http://localhost:25326/auth/google/callback` (or your `DATACLEANER_BASE_URL` + `/auth/google/callback`). Google only accepts `https://` or `http://localhost` addresses here.
+7. **Copy the client ID and secret** right away, because Google shows the secret only once. Paste them on the setup page or in Settings, or set `DATACLEANER_GOOGLE_CLIENT_ID` / `_SECRET` in `.env`.
+8. **Connect:** Google says it "hasn't verified this app". That's normal for a private app you made yourself. Press Advanced, then Go to Data Cleaner (unsafe).
 
 **Microsoft (Outlook.com, Hotmail, Microsoft 365)**
 1. Under [App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade), choose New registration, with account type **"any organizational directory and personal Microsoft accounts"**.

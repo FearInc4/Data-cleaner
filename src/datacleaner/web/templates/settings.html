@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import provider_buttons, provider_icon, mailbox_name %}
+{% from "_macros.html" import provider_buttons, provider_icon, mailbox_name, oauth_app_steps, redirect_warning %}
 
 {% macro field(d, value) -%}
 <div>
@@ -81,28 +81,10 @@
     <summary>Sign-in apps (Google &amp; Microsoft)</summary>
     <p class="help">Each install uses its own OAuth app, so your mailbox access belongs to you and nobody else. One-time setup, about 5 minutes per provider.
       {% if not base_url_configured %}These redirect URIs use the address you're on now ({{ base_url }}). If you reach Data Cleaner at another address, set <code>DATACLEANER_BASE_URL</code>.{% endif %}</p>
+    {% if not redirect_ok %}{{ redirect_warning(base_url, port) }}{% endif %}
     {% for app in apps %}
     <h3>{{ provider_icon(app.provider.key) }} {{ app.provider.name }} {% if app.configured %}<span class="badge ok">configured{{ " via environment" if app.from_env }}</span>{% else %}<span class="badge">not set up</span>{% endif %}</h3>
-    {% if app.provider.key == "google" %}
-    <ol class="steps">
-      <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud Console</a> and create a project (any name).</li>
-      <li>Enable the <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener">Gmail API</a>.</li>
-      <li>Go to <strong>Google Auth Platform → Branding</strong>, fill in an app name and your email. Under <strong>Audience</strong>, choose External and add yourself as a test user.</li>
-      <li>Under <strong>Data Access</strong>, add the scopes <code>gmail.send</code> and <code>gmail.readonly</code>.</li>
-      <li>Under <strong>Clients</strong>, create a <strong>Web application</strong> client with this redirect URI: <code>{{ app.redirect_uri }}</code> <button type="button" class="copy" data-copy="{{ app.redirect_uri }}">Copy</button></li>
-      <li>Paste the client ID and secret below.</li>
-      <li>Optional but recommended: under <strong>Audience</strong>, press <strong>Publish app</strong>. Apps left in "Testing" have to be reconnected every 7 days. You'll see an "unverified app" notice when you connect; that's expected for your own private app.</li>
-    </ol>
-    {% else %}
-    <ol class="steps">
-      <li>Open <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">App registrations</a> and choose <strong>New registration</strong>.</li>
-      <li>Supported account types: <strong>Accounts in any organizational directory and personal Microsoft accounts</strong>.</li>
-      <li>Redirect URI: platform <strong>Web</strong>, <code>{{ app.redirect_uri }}</code> <button type="button" class="copy" data-copy="{{ app.redirect_uri }}">Copy</button></li>
-      <li>Under <strong>Certificates &amp; secrets</strong>, create a client secret and copy its <strong>Value</strong>.</li>
-      <li>Under <strong>API permissions → Microsoft Graph → Delegated</strong>, add <code>Mail.Send</code>, <code>Mail.Read</code>, <code>User.Read</code>, <code>offline_access</code>.</li>
-      <li>Paste the Application (client) ID and secret value below.</li>
-    </ol>
-    {% endif %}
+    {{ oauth_app_steps(app.provider.key, app.redirect_uri) }}
     {% endfor %}
     <div class="row">{% for d, value in groups["Sign-in apps"] %}{{ field(d, value) }}{% endfor %}</div>
   </details>

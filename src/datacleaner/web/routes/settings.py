@@ -43,7 +43,8 @@ def settings_page(request: Request, db: Session = Depends(get_db, scope="functio
         sample = make_alias(mail["email"], "spokeo", 1, mode=s.alias_mode or "plus", catchall_domain=s.alias_domain or None)
     return render(request, db, "settings.html", groups=groups, last_tick=s.get("last_tick_at"), mail=mail, apps=apps,
                   providers=[a["provider"] for a in apps if a["configured"]], sample_alias=sample, base_url=base_url,
-                  base_url_configured=bool(cfg.base_url))
+                  base_url_configured=bool(cfg.base_url), redirect_ok=oauth.redirect_allowed(base_url),
+                  port=urlparse(base_url).port or cfg.port)
 
 
 @router.post("")
