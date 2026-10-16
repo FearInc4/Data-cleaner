@@ -139,14 +139,15 @@ def test_extension_pairs_fills_and_marks_submitted(live, browser):
     popup.fill("#token", live["token"])
     popup.click("#pair-form button[type=submit]")
     popup.wait_for_selector("#main-view:not([hidden])")
-    assert "Paired as admin" in popup.inner_text("#message")
-    assert "FastPeopleSearch" in popup.inner_text("#tasks")
+    # The main view shows before its task list arrives from the server: wait for the text, don't read it once.
+    sync_api.expect(popup.locator("#message")).to_contain_text("Paired as admin")
+    sync_api.expect(popup.locator("#tasks")).to_contain_text("FastPeopleSearch")
 
     # With the broker's page in front, the popup offers to fill it.
     form.bring_to_front()
     popup.evaluate("DataCleaner.render()")
     popup.wait_for_selector("#here:not([hidden])")
-    assert "FastPeopleSearch" in popup.inner_text("#here-broker")
+    sync_api.expect(popup.locator("#here-broker")).to_contain_text("FastPeopleSearch")
     popup.click("#fill")
     sync_api.expect(popup.locator("#message")).to_contain_text("Filled")
 
