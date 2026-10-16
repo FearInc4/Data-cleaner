@@ -71,7 +71,7 @@ The extension only fills forms on the broker's own website, over HTTPS. It fetch
 
 ## Sign in with Google / Microsoft
 
-Each install uses **its own** OAuth app, so your mailbox access belongs to you. No shared developer account sits in the middle, and there's nothing for anyone to sell. It's a one-time setup of about 5 minutes. The app shows these same steps, with your exact redirect URI and copy buttons, under **Settings → Sign-in apps**.
+Each install uses **its own** OAuth app, so your mailbox access belongs to you. The [privacy policy](PRIVACY.md) spells out exactly what Data Cleaner does with that access. No shared developer account sits in the middle, and there's nothing for anyone to sell. It's a one-time setup of about 5 minutes. The app shows these same steps, with your exact redirect URI and copy buttons, under **Settings → Sign-in apps**.
 
 **Google (Gmail / Google Workspace)**
 1. **Create a project:** open [New project](https://console.cloud.google.com/projectcreate), name it "Data Cleaner" and press Create. Check that the project picker at the top shows it.
