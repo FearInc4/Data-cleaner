@@ -69,7 +69,7 @@ DEFS: list[SettingDef] = [
     SettingDef("scan_interval_days", 30, "int", "Exposure scan every N days", group="Monitoring"),
     SettingDef("breach_interval_days", 7, "int", "Breach check every N days", group="Monitoring"),
     SettingDef("searxng_url", "", label="SearXNG URL", group="Monitoring",
-               help="Self-hosted metasearch. docker-compose ships one at http://searxng:8080"),
+               help="Self-hosted metasearch. The Docker setup ships one at http://searxng:25328"),
     SettingDef("brave_api_key", "", "secret", "Brave Search API key", group="Monitoring", help="Optional alternative to SearXNG."),
     SettingDef("xposedornot_enabled", True, "bool", "Use XposedOrNot (free)", group="Monitoring"),
     SettingDef("leakcheck_enabled", True, "bool", "Use LeakCheck public API (free)", group="Monitoring"),
@@ -86,7 +86,8 @@ DEFS: list[SettingDef] = [
 
 DEF_BY_KEY = {d.key: d for d in DEFS}
 # Internal keys that are not shown on the settings page.
-INTERNAL_KEYS = {"imap_uidvalidity", "imap_last_uid", "last_tick_at", "last_digest_at", "checklist_done", "mail_account_id"}
+INTERNAL_KEYS = {"imap_uidvalidity", "imap_last_uid", "last_tick_at", "last_digest_at", "checklist_done", "mail_account_id",
+                 "searxng_url_from_env"}
 
 
 def _coerce(defn: SettingDef | None, raw: str | None) -> Any:

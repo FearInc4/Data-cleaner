@@ -6,6 +6,7 @@ Data Cleaner ships as one container image. A second, optional container runs [Se
 - **Platforms:** `linux/amd64` and `linux/arm64` (Raspberry Pi 4/5 with a 64-bit OS, most NAS boxes, Apple Silicon)
 - **Tags:** `latest` (newest release), `1.2.3` / `1.2` (a release), `edge` (the main branch, updated on every merge), `sha-abc1234` (one exact build)
 - **Port:** `25326` (spells CLEAN on a phone keypad; chosen because other apps don't use it)
+- **SearXNG port:** `25328`, inside Docker only (not the image's default 8080, which many other apps use)
 - **Data:** everything lives in `/data` inside the container
 
 Contents:
@@ -59,7 +60,7 @@ services:
       DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY}
       DATACLEANER_BASE_URL: ${DATACLEANER_BASE_URL:-}        # e.g. https://privacy.example.com
       DATACLEANER_TRUSTED_PROXIES: ${DATACLEANER_TRUSTED_PROXIES:-}
-      DATACLEANER_SEARXNG_URL: http://searxng:8080           # remove if you skip SearXNG
+      DATACLEANER_SEARXNG_URL: http://searxng:25328          # remove if you skip SearXNG
     volumes:
       - datacleaner-data:/data
     read_only: true
@@ -79,7 +80,8 @@ services:
       - source: datacleaner-searxng-settings
         target: /etc/searxng/settings.yml
     environment:
-      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_BASE_URL: http://searxng:25328/
+      GRANIAN_PORT: 25328                # instead of 8080, which many other apps use
       SEARXNG_SECRET: ${SEARXNG_SECRET}
       GRANIAN_HOST: 0.0.0.0              # the image listens on IPv6 only by default
     cap_drop: [ALL]
@@ -254,7 +256,7 @@ Docker Compose ignores `uid`/`mode` options on secrets outside Swarm, so set the
 
 ## Using your own SearXNG
 
-Point `DATACLEANER_SEARXNG_URL` at it, e.g. `http://searxng:8080`. Your SearXNG must allow JSON results:
+Point `DATACLEANER_SEARXNG_URL` at it, e.g. `http://my-searxng:8080` (a stock SearXNG container listens on 8080 unless `GRANIAN_PORT` says otherwise). Your SearXNG must allow JSON results:
 
 ```yaml
 search:

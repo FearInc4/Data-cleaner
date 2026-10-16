@@ -34,6 +34,29 @@ def _check_data_dir(config: Config) -> None:
         ) from None
 
 
+# What the compose files set DATACLEANER_SEARXNG_URL to before SearXNG moved off port 8080.
+_OLD_COMPOSE_SEARXNG_URL = "http://searxng:8080"
+
+
+def _seed_searxng_url(session, url: str) -> None:
+    """Use DATACLEANER_SEARXNG_URL as the SearXNG setting until someone edits it on the Settings page.
+
+    Remembers the value it wrote, so a changed compose file (e.g. a new port) carries over on
+    upgrade while an address the user typed in is never overwritten.
+    """
+    from .settings import Settings
+
+    s = Settings(session)
+    current, seeded = s.searxng_url, s.searxng_url_from_env
+    if current == url:
+        pass
+    elif not current or current == seeded or (seeded is None and current == _OLD_COMPOSE_SEARXNG_URL):
+        s.set("searxng_url", url)
+    else:
+        return  # set by hand: leave it alone
+    s.set("searxng_url_from_env", url)
+
+
 def init(config: Config | None = None, *, sync_catalog: bool = True) -> Config:
     global _config
     config = config or Config()
@@ -53,12 +76,8 @@ def init(config: Config | None = None, *, sync_catalog: bool = True) -> Config:
             stats = _sync(session)
             log.info("Broker catalog synced: %s", stats)
         if config.searxng_url:
-            from .settings import Settings
-
             with session_scope() as session:
-                s = Settings(session)
-                if not s.searxng_url:
-                    s.set("searxng_url", config.searxng_url)
+                _seed_searxng_url(session, config.searxng_url)
     _config = config
     return config
 

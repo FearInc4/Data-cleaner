@@ -65,7 +65,7 @@ def test_searxng_provider_parses_json():
         assert request.url.params["format"] == "json"
         return httpx.Response(200, json={"results": [{"url": "https://a.example", "title": "A", "content": "c", "engines": ["ddg"]}]})
 
-    p = SearxngProvider("http://searxng:8080", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    p = SearxngProvider("http://searxng:25328", client=httpx.Client(transport=httpx.MockTransport(handler)))
     [r] = p.search('"Jane Doe"')
     assert r.url == "https://a.example" and r.engine == "ddg"
 

@@ -28,7 +28,7 @@ services:
       - datacleaner-data:/data
     environment:
       DATACLEANER_PORT: ${DATACLEANER_PORT:-25326}
-      DATACLEANER_SEARXNG_URL: http://searxng:8080
+      DATACLEANER_SEARXNG_URL: http://searxng:25328
       # The address you open in your browser. Needed for Google/Microsoft sign-in
       # when it isn't http://localhost:25326 (https:// also turns on secure cookies + HSTS).
       DATACLEANER_BASE_URL: ${DATACLEANER_BASE_URL:-}
@@ -53,7 +53,9 @@ services:
     environment:
       # Don't let the image chown files from this checkout.
       FORCE_OWNERSHIP: "false"
-      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_BASE_URL: http://searxng:25328/
+      # Not the image's default 8080, which many other apps use (matters with host networking).
+      GRANIAN_PORT: 25328
       # Listen on IPv4: the image's default (IPv6 only) fails on hosts where Docker has IPv6 off.
       GRANIAN_HOST: 0.0.0.0
       SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-to-a-long-random-string}
