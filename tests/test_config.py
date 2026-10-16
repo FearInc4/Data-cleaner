@@ -57,3 +57,38 @@ def test_cli_reports_data_folder_errors(monkeypatch, capsys):
     monkeypatch.setattr(cli, "cmd_check_catalog", fail)
     assert cli.main(["check-catalog"]) == 1
     assert "can't write to its data folder" in capsys.readouterr().err
+
+
+def test_searxng_url_follows_the_compose_file_until_edited_by_hand(tmp_path):
+    from datacleaner.db import session_scope
+    from datacleaner.settings import Settings
+
+    def start(url):
+        app_state.init(Config(data_dir=tmp_path, scheduler_enabled=False, searxng_url=url))
+        with session_scope() as session:
+            return Settings(session).searxng_url
+
+    def edit(url):
+        with session_scope() as session:
+            Settings(session).set("searxng_url", url)
+
+    # An install from before the port change: the old compose value, stored without a marker.
+    app_state.init(Config(data_dir=tmp_path, scheduler_enabled=False))
+    edit("http://searxng:8080")
+    assert start("http://searxng:8080") == "http://searxng:8080"  # old compose file kept: still works
+    assert start("http://searxng:25328") == "http://searxng:25328"  # new compose file: follows it
+    assert start("http://search:9000") == "http://search:9000"  # and any later change
+    edit("https://search.example")
+    assert start("http://searxng:25328") == "https://search.example"  # typed in Settings: kept
+
+
+def test_a_hand_set_searxng_url_on_an_old_install_is_kept(tmp_path):
+    from datacleaner.db import session_scope
+    from datacleaner.settings import Settings
+
+    app_state.init(Config(data_dir=tmp_path, scheduler_enabled=False))
+    with session_scope() as session:
+        Settings(session).set("searxng_url", "http://my-searxng:8888")
+    app_state.init(Config(data_dir=tmp_path, scheduler_enabled=False, searxng_url="http://searxng:25328"))
+    with session_scope() as session:
+        assert Settings(session).searxng_url == "http://my-searxng:8888"

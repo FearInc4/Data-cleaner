@@ -34,7 +34,7 @@ docker compose logs datacleaner
 
 Open the **setup link** the log prints (`http://localhost:25326/setup?token=…`). The one-time token makes sure nobody else can claim your install. A short guided setup takes it from there: connect your email, add your details, pick brokers, send.
 
-This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network. Everything is stored in the `datacleaner-data` Docker volume. Port 25326 spells CLEAN on a phone keypad and was picked because other apps don't use it.
+This starts two containers. `datacleaner` serves the app on localhost only. `searxng` is a private search backend that isn't exposed to the network (it listens on 25328 inside Docker, not the common 8080). Everything is stored in the `datacleaner-data` Docker volume. Port 25326 spells CLEAN on a phone keypad and was picked because other apps don't use it.
 
 **Already run a Docker stack?** [docs/docker.md](docs/docker.md) has a block to paste into your own `docker-compose.yml`, plus Traefik, Caddy, Nginx Proxy Manager and Tailscale setups, bind mounts and custom user IDs, Docker secrets, updating, backup and restore, and troubleshooting.
 

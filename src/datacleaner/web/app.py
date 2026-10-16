@@ -36,7 +36,7 @@ def _allowed_hosts(config: Config) -> set[str] | None:
 
 def _hostname(host_header: str) -> str:
     host_header = host_header.strip().lower()
-    if host_header.startswith("["):  # [::1]:8080
+    if host_header.startswith("["):  # [::1]:25326
         return host_header.split("]", 1)[0] + "]"
     return host_header.rsplit(":", 1)[0] if host_header.count(":") == 1 else host_header
 

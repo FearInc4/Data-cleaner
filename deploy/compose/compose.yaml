@@ -22,7 +22,7 @@ services:
       DATACLEANER_SECRET_KEY: ${DATACLEANER_SECRET_KEY:-}
       # Your reverse proxy's address or network, so sign-in limits see real client IPs.
       DATACLEANER_TRUSTED_PROXIES: ${DATACLEANER_TRUSTED_PROXIES:-}
-      DATACLEANER_SEARXNG_URL: http://searxng:8080
+      DATACLEANER_SEARXNG_URL: http://searxng:25328
       DATACLEANER_GOOGLE_CLIENT_ID: ${DATACLEANER_GOOGLE_CLIENT_ID:-}
       DATACLEANER_GOOGLE_CLIENT_SECRET: ${DATACLEANER_GOOGLE_CLIENT_SECRET:-}
       DATACLEANER_MICROSOFT_CLIENT_ID: ${DATACLEANER_MICROSOFT_CLIENT_ID:-}
@@ -50,7 +50,9 @@ services:
       - source: searxng-settings
         target: /etc/searxng/settings.yml
     environment:
-      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_BASE_URL: http://searxng:25328/
+      # Not the image's default 8080, which many other apps use (matters with host networking).
+      GRANIAN_PORT: 25328
       # Listen on IPv4: the image's default (IPv6 only) fails on hosts where Docker has IPv6 off.
       GRANIAN_HOST: 0.0.0.0
       SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-to-a-long-random-string}
