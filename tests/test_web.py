@@ -240,7 +240,7 @@ def test_sign_in_app_steps_link_every_google_page(client):
     for url in ("console.cloud.google.com/projectcreate", "apis/library/gmail.googleapis.com", "/auth/overview", "/auth/branding",
                 "/auth/audience", "/auth/scopes", "/auth/clients/create"):
         assert url in page
-    assert "Publish app" in page and "Access blocked" in page
+    assert "Test users" in page and "Access blocked" in page
     assert 'data-copy="http://testserver/auth/google/callback"' in page
     # http://testserver isn't https or localhost, so Google would refuse its redirect URI: say so, and how to get round it.
     assert "only accept sign-in addresses" in page and "ssh -L 25326:localhost:25326" in page
