@@ -237,7 +237,7 @@ def test_redirect_uris_google_and_microsoft_accept():
 def test_sign_in_app_steps_link_every_google_page(client):
     login(client)
     page = client.get("/settings").text
-    for url in ("console.cloud.google.com/projectcreate", "apis/library/gmail.googleapis.com", "/auth/overview",
+    for url in ("console.cloud.google.com/projectcreate", "apis/library/gmail.googleapis.com", "/auth/overview", "/auth/branding",
                 "/auth/audience", "/auth/scopes", "/auth/clients/create"):
         assert url in page
     assert "Publish app" in page and "Access blocked" in page
