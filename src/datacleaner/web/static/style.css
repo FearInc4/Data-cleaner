@@ -193,6 +193,7 @@ details summary { cursor: pointer; color: var(--accent); font-size: .88rem; }
 .checklist li:last-child { border-bottom: 0; }
 .checklist li.done .title { text-decoration: line-through; color: var(--muted); }
 .steps { margin: .25rem 0 .5rem 1.2rem; padding: 0; }
+.steps code, .callout code { overflow-wrap: anywhere; }
 .auth-box { max-width: 420px; margin: 4rem auto; }
 .copy { font-size: .78rem; padding: .1rem .45rem; }
 .nowrap { white-space: nowrap; }
