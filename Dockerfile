@@ -4,7 +4,7 @@
 #   - base image pinned by digest (Dependabot proposes updates)
 #   - every Python dependency pinned by version AND sha256 hash (requirements.lock)
 #   - runs as an unprivileged user; works with a read-only root filesystem
-FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
